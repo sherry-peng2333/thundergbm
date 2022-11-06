@@ -44,7 +44,7 @@ include_directories(${COMMON_INCLUDES})
 
 add_subdirectory(src/thundergbm)
 
-set(BUILD_TESTS OFF CACHE BOOL "Build Tests")
+set(BUILD_TESTS ON CACHE BOOL "Build Tests")
 if (BUILD_TESTS)
     add_subdirectory(src/test)
 endif ()

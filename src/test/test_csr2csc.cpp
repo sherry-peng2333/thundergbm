@@ -122,9 +122,29 @@ protected:
         csc_row_idx2.resize(nnz);
         csc_col_ptr2.resize(n_column + 1);
 
-        cusparseScsr2csc(handle, dataset.n_instances(), n_column, nnz, val.device_data(), row_ptr.device_data(),
-                         col_idx.device_data(), csc_val2.device_data(), csc_row_idx2.device_data(), csc_col_ptr2.device_data(),
-                         CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO);
+        size_t buffer_size = 0;
+        #ifdef USE_DOUBLE
+            cudaDataType data_type = CUDA_R_64F;
+        #else
+            cudaDataType data_type = CUDA_R_32F;
+        #endif
+        cusparseCsr2cscEx2_bufferSize(
+            handle, dataset.n_instances(), n_column, nnz, val.device_data(),
+            row_ptr.device_data(), col_idx.device_data(), csc_val2.device_data(),
+            csc_col_ptr2.device_data(), csc_row_idx2.device_data(), data_type,
+            CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO,
+            CUSPARSE_CSR2CSC_ALG1, &buffer_size);
+        SyncArray<char> tmp_buffer(buffer_size);
+        cusparseCsr2cscEx2(
+            handle, dataset.n_instances(), n_column, nnz, val.device_data(),
+            row_ptr.device_data(), col_idx.device_data(), csc_val2.device_data(),
+            csc_col_ptr2.device_data(), csc_row_idx2.device_data(), data_type,
+            CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO,
+            CUSPARSE_CSR2CSC_ALG1, tmp_buffer.device_data());
+
+        //cusparseScsr2csc(handle, dataset.n_instances(), n_column, nnz, val.device_data(), row_ptr.device_data(),
+        //                 col_idx.device_data(), csc_val2.device_data(), csc_row_idx2.device_data(), csc_col_ptr2.device_data(),
+        //                 CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO);
         cudaDeviceSynchronize();
         cusparseDestroy(handle);
         cusparseDestroyMatDescr(descr);
