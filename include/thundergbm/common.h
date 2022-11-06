@@ -96,15 +96,15 @@ struct GBMParam {
     bool bagging;
     int n_parallel_trees;
     float learning_rate;
-    std::string objective;
-    int num_class;
-    int tree_per_rounds; // #tree of each round, depends on #class
+    std::string objective;       // "reg:linear" "reg:logistic" "binary:logistic" "multi:softprob" "multi:softmax" 
+    int num_class;               // "rank:pairwise" "rank:ndcg" “mo-lab:mse” "mo-reg:mse"
+    int tree_per_rounds;         // #tree of each round, depends on #class
 
     //for histogram
     int max_num_bin;
 
     int n_device;
 
-    std::string tree_method;
+    std::string tree_method;   // "auto" "exact" "hist"
 };
 #endif //THUNDERGBM_COMMON_H
