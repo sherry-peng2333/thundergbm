@@ -101,7 +101,7 @@ TEST_F(GetCutPointTest, covtype) {
     //columns.csr2csc_gpu(dataset, v_columns);
     //cut.get_cut_points2(columns, param.max_num_bin, dataset.n_instances());
 
-    printf("### Dataset: %s, num_instances: %d, num_features: %d, get_cut_points finished. ###\n",
+    printf("### Dataset: %s, num_instances: %ld, num_features: %ld, get_cut_points finished. ###\n",
            param.path.c_str(),
            dataset.n_instances(),
            dataset.n_features());

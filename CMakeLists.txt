@@ -39,7 +39,8 @@ add_definitions("-DELPP_THREAD_SAFE")
 add_definitions("-DELPP_STL_LOGGING")
 add_definitions("-DELPP_NO_LOG_TO_FILE") 
 # includes
-set(COMMON_INCLUDES ${PROJECT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR} ${PROJECT_SOURCE_DIR}/cub)
+#set(COMMON_INCLUDES ${PROJECT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR} ${PROJECT_SOURCE_DIR}/cub)
+set(COMMON_INCLUDES ${PROJECT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${COMMON_INCLUDES})
 
 add_subdirectory(src/thundergbm)

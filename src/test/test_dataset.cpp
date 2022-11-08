@@ -171,7 +171,7 @@ TEST_F(DatasetTest, load_dataset){
     DataSet dataset;
     load_from_file(param.path, param);
     dataset.load_from_file(param.path, param);
-    printf("### Dataset: %s, num_instances: %d, num_features: %d. ###\n",
+    printf("### Dataset: %s, num_instances: %ld, num_features: %ld. ###\n",
            param.path.c_str(),
            dataset.n_instances(),
            dataset.n_features());
