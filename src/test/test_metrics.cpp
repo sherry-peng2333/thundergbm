@@ -32,7 +32,7 @@ protected:
         param.learning_rate = 1;
         param.objective = "reg:linear";
         param.num_class = 2;
-        param.path = "../dataset/test_dataset.txt";
+        param.path = "../../../dataset/test_dataset.txt";
         param.tree_method = "hist";
         if (!param.verbose) {
             el::Loggers::reconfigureAllLoggers(el::Level::Debug, el::ConfigurationType::Enabled, "false");

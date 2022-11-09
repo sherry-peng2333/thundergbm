@@ -616,15 +616,27 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
                     continue;
                 }
                 // parse instance label
-                while(r==1){   
+                const char *label_end = p;
+                while(label_end != line_end && !isblank(*label_end)) ++label_end;
+                while(label_end != line_end &&  isblank(*label_end)) ++label_end;
+                while(p != label_end){
+                    r = parse_pair<float_type, float_type>(p, line_end, &q, label, temp_);
                     mo_val_[tid].push_back(label);
                     if(label>max_label[tid])
                         max_label[tid]=label;
                     mo_row_len_[tid].back()++;
                     p = q;
-                    r = parse_pair<float_type, float_type>(p, line_end, &q, label, temp_);
                 }
-
+                //while(r==1){
+                    //std::cout << "label:" << label << " ";   
+                    //mo_val_[tid].push_back(label);
+                    //if(label>max_label[tid])
+                        //max_label[tid]=label;
+                    //mo_row_len_[tid].back()++;
+                    //p = q;
+                    //r = parse_pair<float_type, float_type>(p, line_end, &q, label, temp_);
+                //}
+                //std::cout<<std::endl;
                 // parse feature id and value
                 p = q;
                 while(p != line_end) {
@@ -639,6 +651,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
                         continue;
                     }
                     if(r == 2) {
+                        //std::cout << "feature:value " << feature_id << ":" << value << std::endl;
                         col_idx[tid].push_back(feature_id - 1);
                         val_[tid].push_back(value);
                         if(feature_id > max_feature[tid])

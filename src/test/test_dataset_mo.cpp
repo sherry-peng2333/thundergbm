@@ -14,6 +14,9 @@ public:
     vector<float_type> y;
     size_t n_features_;
     vector<float_type> label;
+    size_t d_outputs_ = 1;                // dimension of outputs(by pxm)
+    vector<float_type> mo_csr_val;
+    vector<int> mo_csr_row_ptr;
 protected:
     void SetUp() override {
         param.depth = 6;
@@ -30,9 +33,9 @@ protected:
         param.bagging = false;
         param.n_parallel_trees = 1;
         param.learning_rate = 1;
-        param.objective = "reg:linear";
+        param.objective = "mo-lab:mse";
         param.num_class = 1;
-        param.path = "../dataset/test_dataset.txt";
+        param.path = "../../../dataset/test_dataset_mo.txt";
         param.tree_method = "auto";
         if (!param.verbose) {
             el::Loggers::reconfigureAllLoggers(el::Level::Debug, el::ConfigurationType::Enabled, "false");
@@ -44,13 +47,16 @@ protected:
         }
     }
 
-    void load_from_file(string file_name, GBMParam &param) {
+    void load_from_file_mo(string file_name, GBMParam &param) {
         LOG(INFO) << "loading LIBSVM dataset from file \"" << file_name << "\"";
-        y.clear();
-        csr_row_ptr.resize(1, 0);
-        csr_col_idx.clear();
+        // initialize
         csr_val.clear();
+        csr_col_idx.clear();
+        csr_row_ptr.resize(1, 0); // (0)
+        mo_csr_val.clear();
+        mo_csr_row_ptr.resize(1, 0); // (0)
         n_features_ = 0;
+        d_outputs_ = 0;
 
         std::ifstream ifs(file_name, std::ifstream::binary);
         CHECK(ifs.is_open()) << "file " << file_name << " not found";
@@ -72,13 +78,16 @@ protected:
             //ifs.read(buffer.data(), buffer.size());
             //char *head = buffer.data();
             size_t size = ifs.gcount();
-            vector<vector<float_type>> y_(nthread);
+            // create vectors for each thread
+            vector<vector<float_type>> val_(nthread);
             vector<vector<int>> col_idx_(nthread);
             vector<vector<int>> row_len_(nthread);
-            vector<vector<float_type>> val_(nthread);
-
+            vector<vector<float_type>> mo_val_(nthread);
+            vector<vector<int>> mo_row_len_(nthread);
             vector<int> max_feature(nthread, 0);
-            bool is_zeor_base = false;
+            vector<int> max_label(nthread, 0);
+            bool fis_zero_base = false;                // feature indices start from 0
+            bool lis_zero_base = true;                 // label indices start from 0
 
 #pragma omp parallel num_threads(nthread)
             {
@@ -113,12 +122,24 @@ protected:
                         std::stringstream ss(line);
 
                         //read label of an instance
-                        y_[tid].push_back(0);
-                        ss >> y_[tid].back();
+                        float_type label;
+                        mo_row_len_[tid].push_back(0);
+                        string data, tmp;
+                        ss >> data;
+                        //std::cout << "data:" << data << std::endl;
+                        std::stringstream input(data);
+                        while(getline(input, tmp, ',')){
+                            label = stof(tmp);
+                            mo_val_[tid].push_back(label);
+                            if(label>max_label[tid])
+                                max_label[tid]=label;
+                            mo_row_len_[tid].back()++;
+                        }
 
                         row_len_[tid].push_back(0);
                         string tuple;
                         while (ss >> tuple) {
+                            //std::cout << "tuple:" << tuple << std::endl;
                             int i;
                             float v;
                             CHECK_EQ(sscanf(tuple.c_str(), "%d:%f", &i, &v), 2)
@@ -126,7 +147,7 @@ protected:
 //TODO one-based and zero-based
                             col_idx_[tid].push_back(i - 1);//one based
                             if(i - 1 == -1){
-                                is_zeor_base = true;
+                                fis_zero_base = true;
                             }
                             CHECK_GE(i - 1, -1) << "dataset format error";
                             val_[tid].push_back(v);
@@ -145,40 +166,57 @@ protected:
                 if (max_feature[i] > n_features_)
                     n_features_ = max_feature[i];
             }
-            for (int tid = 0; tid < nthread; tid++) {
-                csr_val.insert(csr_val.end(), val_[tid].begin(), val_[tid].end());
-                if(is_zeor_base){
-                    for (int i = 0; i < col_idx_[tid].size(); ++i) {
-                        col_idx_[tid][i]++;
-                    }
-                }
-                csr_col_idx.insert(csr_col_idx.end(), col_idx_[tid].begin(), col_idx_[tid].end());
-                for (int row_len : row_len_[tid]) {
-                    csr_row_ptr.push_back(csr_row_ptr.back() + row_len);
-                }
-            }
+            // get the dimension of outputs
+        if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels
             for (int i = 0; i < nthread; i++) {
-                this->y.insert(y.end(), y_[i].begin(), y_[i].end());
-                this->label.insert(label.end(), y_[i].begin(), y_[i].end());
+                if (max_label[i] > d_outputs_)
+                d_outputs_ = max_label[i];
             }
+            if(lis_zero_base) d_outputs_=d_outputs_+1;
+        }
+        else if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
+            d_outputs_=mo_row_len_[0][0];
+        }
+        // get the csr of features
+        for (int tid = 0; tid < nthread; tid++) {
+            csr_val.insert(csr_val.end(), val_[tid].begin(), val_[tid].end());
+            if(fis_zero_base){
+                for (int i = 0; i < col_idx_[tid].size(); ++i) {
+                    col_idx_[tid][i]++;
+                }
+            }
+            csr_col_idx.insert(csr_col_idx.end(), col_idx_[tid].begin(), col_idx_[tid].end());
+            for (int row_len : row_len_[tid]) {
+                csr_row_ptr.push_back(csr_row_ptr.back() + row_len);
+            }
+        }
+        // get the csr of outputs
+        for (int tid = 0; tid < nthread; tid++) {
+            mo_csr_val.insert(mo_csr_val.end(), mo_val_[tid].begin(), mo_val_[tid].end());
+            for (int mo_row_len : mo_row_len_[tid]) {
+                mo_csr_row_ptr.push_back(mo_csr_row_ptr.back() + mo_row_len);
+            }
+        }
         }
         ifs.close();
         free(buffer);
     }
 };
 
-TEST_F(MODatasetTest, load_dataset){
+TEST_F(MODatasetTest, load_dataset_mo){
     DataSet dataset;
-    load_from_file(param.path, param);
-    dataset.load_from_file(param.path, param);
-    printf("### Dataset: %s, num_instances: %ld, num_features: %ld. ###\n",
+    load_from_file_mo(param.path, param);
+    dataset.load_from_file_mo(param.path, param);
+    printf("### Dataset: %s, num_instances: %ld, num_features: %ld, dim_outputs: %ld. ###\n",
            param.path.c_str(),
-           dataset.n_instances(),
-           dataset.n_features());
-    EXPECT_EQ(dataset.n_instances(), 1605);
-    EXPECT_EQ(dataset.n_features_, 119);
-    EXPECT_EQ(dataset.label[0], -1);
-    EXPECT_EQ(dataset.csr_val[1], 1);
+           dataset.n_instances_mo(),
+           dataset.n_features(),
+           dataset.d_outputs_);
+    EXPECT_EQ(dataset.n_instances_mo(), 7395);
+    EXPECT_EQ(dataset.n_features_, 1836);
+    EXPECT_EQ(dataset.d_outputs_, 159);
+    //EXPECT_EQ(dataset.label[0], -1);
+    //EXPECT_EQ(dataset.csr_val[1], 1);
 
     for(int i = 0; i < csr_val.size(); i++)
         EXPECT_EQ(csr_val[i], dataset.csr_val[i]);
@@ -186,5 +224,9 @@ TEST_F(MODatasetTest, load_dataset){
         EXPECT_EQ(csr_row_ptr[i], dataset.csr_row_ptr[i]);
     for(int i = 0; i < csr_col_idx.size(); i++)
         EXPECT_EQ(csr_col_idx[i], dataset.csr_col_idx[i]);
+    for(int i = 0; i < mo_csr_val.size(); i++)
+        EXPECT_EQ(mo_csr_val[i], dataset.mo_csr_val[i]);
+    for(int i = 0; i < mo_csr_row_ptr.size(); i++)
+        EXPECT_EQ(mo_csr_row_ptr[i], dataset.mo_csr_row_ptr[i]);
 }
 
