@@ -42,8 +42,8 @@ __global__ void lambda_2d_maximum_sparse_kernel(const int *len2, const int maxim
 
 ///p100 has 56 MPs, using 32*56 thread blocks
 template<int NUM_BLOCK = 32 * 56, int BLOCK_SIZE = 256, typename L>
-inline void device_loop(int len, L lambda) {
-    if (len > 0) {
+inline void  {
+    if (len > 0) {device_loop(int len, L lambda)
         lambda_kernel << < NUM_BLOCK, BLOCK_SIZE >> > (len, lambda);
         cudaDeviceSynchronize();
         /*cudaError_t error = cudaPeekAtLastError();*/

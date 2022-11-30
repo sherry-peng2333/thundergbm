@@ -627,16 +627,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
                     mo_row_len_[tid].back()++;
                     p = q;
                 }
-                //while(r==1){
-                    //std::cout << "label:" << label << " ";   
-                    //mo_val_[tid].push_back(label);
-                    //if(label>max_label[tid])
-                        //max_label[tid]=label;
-                    //mo_row_len_[tid].back()++;
-                    //p = q;
-                    //r = parse_pair<float_type, float_type>(p, line_end, &q, label, temp_);
-                //}
-                //std::cout<<std::endl;
+                
                 // parse feature id and value
                 p = q;
                 while(p != line_end) {
@@ -699,6 +690,23 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
                 mo_csr_row_ptr.push_back(mo_csr_row_ptr.back() + mo_row_len);
             }
         }
+        // get y(to do: discard when csr data format is solved)
+        if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels
+            size_t n_outputs = d_outputs_* (mo_csr_row_ptr.size()-1);
+            vector<float_type> y_(n_outputs);
+            int row_id, column_id;
+            for(row_id = 0; row_id < mo_csr_row_ptr.size()-1; row_id++){
+                for(int i = mo_csr_row_ptr[row_id]; i < mo_csr_row_ptr[row_id+1]; i++){
+                    if(!lis_zero_base) column_id = mo_csr_val[i]-1;
+                    y_[column_id+row_id*d_outputs_] = 1;
+                }   
+            }
+            y.insert(y.end(), y_.begin(), y_.end());
+        }
+        else if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
+            y.insert(y.end(), mo_csr_val.begin(), mo_csr_val.end());
+        }
+
     } // end while
 
     ifs.close();

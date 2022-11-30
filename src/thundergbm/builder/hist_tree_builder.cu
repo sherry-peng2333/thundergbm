@@ -95,8 +95,8 @@ void HistTreeBuilder::find_split(int level, int device_id) {
         auto t_build_start = timer.now();
 
         //calculate split information for each split
-        SyncArray<GHPair> hist(n_max_splits);
-        SyncArray<GHPair> missing_gh(n_partition);
+        SyncArray<GHPair> hist(n_max_splits*d_outputs_);
+        SyncArray<GHPair> missing_gh(n_partition*d_outputs_);
         auto cut_fid_data = cut.cut_fid.device_data();
         auto i2fid = [=] __device__(int i) { return cut_fid_data[i % n_bins]; };
         auto hist_fid = make_transform_iterator(counting_iterator<int>(0), i2fid);
@@ -105,7 +105,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 TIMED_SCOPE(timerObj, "build hist");
                 {
                     size_t
-                    smem_size = n_bins * sizeof(GHPair);
+                    smem_size = n_bins * sizeof(GHPair)*d_outputs_;
                     LOG(DEBUG) << "shared memory size = " << smem_size / 1024.0 << " KB";
                     if (n_nodes_in_level == 1) {
                         //root
@@ -122,16 +122,19 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                 unsigned char bid = dense_bin_id_data[iid * n_column + fid];
                                 if (bid != max_num_bin) {
                                     int feature_offset = cut_row_ptr_data[fid];
-                                    const GHPair src = gh_data[iid];
-                                    GHPair &dest = hist_data[feature_offset + bid];
-                                    if(src.h != 0)
-                                        atomicAdd(&dest.h, src.h);
-                                    if(src.g != 0)
-                                        atomicAdd(&dest.g, src.g);
+                                    for(int i = 0; i < d_outputs_; i++){
+                                        const GHPair src = gh_data[iid*d_outputs_+i];
+                                        GHPair &dest = hist_data[i*n_max_splits+feature_offset + bid]
+                                        if(src.h != 0)
+                                            atomicAdd(&dest.h, src.h);
+                                        if(src.g != 0)
+                                            atomicAdd(&dest.g, src.g);
+                                    }
 
                                 }
                             });
                         } else {
+                            // To do: add multi-outputs feature 
                             int num_fv = n_instances * n_column;
                             anonymous_kernel([=]__device__() {
                                 extern __shared__ GHPair local_hist[];
@@ -214,7 +217,8 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                 int nid0 = nid0_to_compute;
                                 auto idx_begin = node_ptr.host_data()[nid0];
                                 auto idx_end = node_ptr.host_data()[nid0 + 1];
-                                auto hist_data = hist.device_data() + nid0 * n_bins;
+                                auto hist_data = hist.device_data()
+                                //auto hist_data = hist.device_data() + nid0 * n_bins * d_outputs_;
                                 this->total_hist_num++;
 
                                 if (smem_size > 48 * 1024) {
@@ -224,16 +228,18 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                         unsigned char bid = dense_bin_id_data[iid * n_column + fid];
                                         if (bid != max_num_bin) {
                                             int feature_offset = cut_row_ptr_data[fid];
-                                            const GHPair src = gh_data[iid];
-                                            GHPair &dest = hist_data[feature_offset + bid];
-                                            if(src.h != 0)
-                                                atomicAdd(&dest.h, src.h);
-                                            if(src.g != 0)
-                                                atomicAdd(&dest.g, src.g);
-
+                                            for(int i = 0; i < d_outputs_; i++){
+                                                const GHPair src = gh_data[iid*d_outputs_+i];
+                                                GHPair &dest = hist_data[i*n_max_splits+nid0*n_bins+feature_offset + bid]
+                                                if(src.h != 0)
+                                                    atomicAdd(&dest.h, src.h);
+                                                if(src.g != 0)
+                                                    atomicAdd(&dest.g, src.g);
+                                            }
                                         }
                                     });
                                 } else {
+                                    // To do: add multi-outputs feature
                                     int num_fv = (idx_end - idx_begin) * n_column;
                                     anonymous_kernel([=] __device__() {
                                         extern __shared__ GHPair local_hist[];
@@ -277,9 +283,13 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                             {
                                 auto hist_data_computed = hist.device_data() + nid0_to_compute * n_bins;
                                 auto hist_data_to_compute = hist.device_data() + nid0_to_substract * n_bins;
-                                auto father_hist_data = last_hist.device_data() + (nid0_to_substract / 2) * n_bins;
-                                device_loop(n_bins, [=]__device__(int i) {
-                                    hist_data_to_compute[i] = father_hist_data[i] - hist_data_computed[i];
+                                auto father_hist_data = last_hist.device_data() + (nid0_to_substract / 2) * n_bins ;
+                                //auto hist_data = hist.device_data();
+                                //auto father_hist_data = last_hist.device_data();
+                                device_loop(n_bins * d_outputs_, [=]__device__(int i) {
+                                    int d = i / n_bins;
+                                    int bid = i % n_bins;
+                                    hist_data_computed[d*n_max_splits+bid] = father_hist_data[d*n_max_splits+bid]-hist_data_computed[d*n_max_splits+bid]
                                 });
                             }
                             auto t_copy_end = timer.now();
@@ -305,7 +315,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 LOG(DEBUG) << "-------------->>> cp_time::::: " << this->total_copy_time;
 
                 //LOG(DEBUG) << "cutfid = " << cut.cut_fid;
-                inclusive_scan_by_key(cuda::par, hist_fid, hist_fid + n_split,
+                inclusive_scan_by_key(cuda::par, hist_fid, hist_fid + n_split*d_outputs_,
                                       hist.device_data(), hist.device_data());
                 LOG(DEBUG) << hist;
 
@@ -318,9 +328,11 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                     int nid = nid0 + nid_offset;
                     if (!nodes_data[nid].splittable()) return;
                     int fid = pid % n_column;
-                    if (cut_row_ptr[fid + 1] != cut_row_ptr[fid]) {
-                        GHPair node_gh = hist_data[nid0 * n_bins + cut_row_ptr[fid + 1] - 1];
-                        missing_gh_data[pid] = nodes_data[nid].sum_gh_pair - node_gh;
+                    if (cut_row_ptr[fid + 1] != cut_row_ptr[fid]) {            
+                        for(int i = 0; i < d_outputs_; i++){
+                            GHPair node_gh = hist_data[i*n_partition+nid0 * n_bins+cut_row_ptr[fid + 1] - 1];
+                            missing_gh_data[i*n_partition+pid] = nodes_data[nid].sum_gh_pair[i] - node_gh;
+                        }
                     }
                 });
                 LOG(DEBUG) << missing_gh;
@@ -353,14 +365,19 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 int fid = hist_fid[i % n_bins];
                 if (nodes_data[nid].is_valid && !ignored_set_data[fid]) {
                     int pid = nid0 * n_column + hist_fid[i];
-                    GHPair father_gh = nodes_data[nid].sum_gh_pair;
-                    GHPair p_missing_gh = missing_gh_data[pid];
-                    GHPair rch_gh = gh_prefix_sum_data[i];
-                    float_type default_to_left_gain = max(0.f,
-                                                          compute_gain(father_gh, father_gh - rch_gh, rch_gh, mcw, l));
-                    rch_gh = rch_gh + p_missing_gh;
-                    float_type default_to_right_gain = max(0.f,
-                                                           compute_gain(father_gh, father_gh - rch_gh, rch_gh, mcw, l));
+                    SyncArray<GHPair> father_gh = nodes_data[nid].sum_gh_pair;
+                    float_type default_to_left_gain = 0;
+                    float_type default_to_right_gain = 0;
+                    for(int j = 0; j < d_outputs_; j++){
+                        GHPair rch_gh = gh_prefix_sum_data[j*n_max_splits+i];
+                        default_to_left_gain = default_to_left_gain + max(0.f,
+                            compute_gain(father_gh[j], father_gh[j] - rch_gh, rch_gh, mcw, l));
+                    }
+                    for(int j = 0; j < d_outputs_; j++){
+                        GHPair rch_gh = gh_prefix_sum_data[j*n_max_splits+i]+missing_gh_data[j*n_partition+pid];
+                        default_to_right_gain = max(0.f,
+                            compute_gain(father_gh[j], father_gh[j] - rch_gh, rch_gh, mcw, l));
+                    }
                     if (default_to_left_gain > default_to_right_gain)
                         gain_data[i] = default_to_left_gain;
                     else
@@ -428,6 +445,10 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 sp_data[i].fea_missing_gh = missing_gh_data[i * n_column + hist_fid[split_index]];
                 sp_data[i].default_right = best_split_gain < 0;
                 sp_data[i].rch_sum_gh = hist_data[split_index];
+                for(int j = 0; j < d_outputs_; j++){
+                    sp_data[i].fea_missing_gh = missing_gh_data[j * n_partition + i * n_column + hist_fid[split_index]];
+                    sp_data[i].rch_sum_gh = hist_data[j * n_max_splits + split_index];
+                }
             });
         }
     }

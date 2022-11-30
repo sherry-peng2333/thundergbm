@@ -33,16 +33,21 @@ void TreeBuilder::update_tree() {
                 lch.is_valid = true;
                 rch.is_valid = true;
                 node.split_feature_id = sp_data[i].split_fea_id;
-                GHPair p_missing_gh = sp_data[i].fea_missing_gh;
+                SyncArray<GHPair> p_missing_gh = sp_data[i].fea_missing_gh.device_data();
                 //todo process begin
                 node.split_value = sp_data[i].fval;
                 node.split_bid = sp_data[i].split_bid;
-                rch.sum_gh_pair = sp_data[i].rch_sum_gh;
+                int dimension = sp_data[i].rch_sum_gh.size();
+                rch.sum_gh_pair.copy_from(sp_data[i].rch_sum_gh, dimension);
                 if (sp_data[i].default_right) {
-                    rch.sum_gh_pair = rch.sum_gh_pair + p_missing_gh;
+                    for(int j = 0; j < dimension; j++){
+                        rch.sum_gh_pair[j] = rch.sum_gh_pair[j] + p_missing_gh[j];
+                    }   
                     node.default_right = true;
                 }
-                lch.sum_gh_pair = node.sum_gh_pair - rch.sum_gh_pair;
+                for(int j = 0; j < dimension; j++){
+                    lch.sum_gh_pair[j] = node.sum_gh_pair[j] - rch.sum_gh_pair[j];
+                }
                 lch.calc_weight(lambda);
                 rch.calc_weight(lambda);
             } else {
@@ -61,14 +66,16 @@ void TreeBuilder::update_tree() {
 
 void TreeBuilder::predict_in_training(int k) {
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
-        auto y_predict_data = y_predict[device_id].device_data() + k * n_instances;
+        auto y_predict_data = y_predict[device_id].device_data() + k * n_instances * d_outputs_;
         auto nid_data = ins2node_id[device_id].device_data();
         const Tree::TreeNode *nodes_data = trees[device_id].nodes.device_data();
         auto lr = param.learning_rate;
         device_loop(n_instances, [=]__device__(int i) {
             int nid = nid_data[i];
             while (nid != -1 && (nodes_data[nid].is_pruned)) nid = nodes_data[nid].parent_index;
-            y_predict_data[i] += lr * nodes_data[nid].base_weight;
+            for(int j = 0; j < d_outputs_; j++){
+                y_predict_data[i * d_outputs_ + j] += lr * nodes_data[nid].base_weight[j];
+            }
         });
     });
 }
@@ -78,15 +85,16 @@ void TreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
     cudaGetDeviceCount(&n_available_device);
     CHECK_GE(n_available_device, param.n_device) << "only " << n_available_device
                                                  << " GPUs available; please set correct number of GPUs to use";
-    FunctionBuilder::init(dataset, param);
+    FunctionBuilder::init(dataset, param);      // this->param = param
     this->n_instances = dataset.n_instances();
+    this->d_outputs_ = dataset.d_outputs_;
     trees = vector<Tree>(param.n_device);
     ins2node_id = MSyncArray<int>(param.n_device, n_instances);
     sp = MSyncArray<SplitPoint>(param.n_device);
     has_split = vector<bool>(param.n_device);
     int n_outputs = param.num_class * n_instances;
     y_predict = MSyncArray<float_type>(param.n_device, n_outputs);
-    gradients = MSyncArray<GHPair>(param.n_device, n_instances);
+    gradients = MSyncArray<GHPair>(param.n_device, n_instances*this->d_outputs_);
 }
 
 void TreeBuilder::ins2node_id_all_reduce(int depth) {
@@ -153,8 +161,8 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
         Tree &tree = trees[k];
         DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
             this->ins2node_id[device_id].resize(n_instances);
-            this->gradients[device_id].set_device_data(const_cast<GHPair *>(gradients[device_id].device_data() + k * n_instances));
-            this->trees[device_id].init2(this->gradients[device_id], param);
+            this->gradients[device_id].set_device_data(const_cast<GHPair *>(gradients[device_id].device_data() + k * n_instances * d_outputs_));
+            this->trees[device_id].init2(this->gradients[device_id], param, this->d_outputs_);
         });
 
         for (int level = 0; level < param.depth; ++level) {

@@ -3,8 +3,7 @@
 //
 #include "thundergbm/objective/multiclass_obj.h"
 
-void
-Softmax::get_gradient(const SyncArray<float_type> &y, const SyncArray<float_type> &y_p, SyncArray<GHPair> &gh_pair) {
+void Softmax::get_gradient(const SyncArray<float_type> &y, const SyncArray<float_type> &y_p, SyncArray<GHPair> &gh_pair) {
     CHECK_EQ(y.size(), y_p.size() / num_class);
     CHECK_EQ(y_p.size(), gh_pair.size());
     auto y_data = y.device_data();

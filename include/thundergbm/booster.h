@@ -39,7 +39,7 @@ void Booster::init(const DataSet &dataSet, const GBMParam &param) {
     CHECK_GE(n_available_device, param.n_device) << "only " << n_available_device
                                             << " GPUs available; please set correct number of GPUs to use";
     this->param = param;
-    fbuilder.reset(FunctionBuilder::create(param.tree_method));
+    fbuilder.reset(FunctionBuilder::create(param.tree_method)); // "exact"->ExactTreeBuilder "hist"->HistTreeBuilder
     fbuilder->init(dataSet, param);
     obj.reset(ObjectiveFunction::create(param.objective));
     obj->configure(param, dataSet);
@@ -52,7 +52,7 @@ void Booster::init(const DataSet &dataSet, const GBMParam &param) {
     y = MSyncArray<float_type>(n_devices, dataSet.n_instances());
 
     DO_ON_MULTI_DEVICES(n_devices, [&](int device_id) {
-        y[device_id].copy_from(dataSet.y.data(), dataSet.n_instances());
+        y[device_id].copy_from(dataSet.y.data(), dataSet.n_instances()*dataSet.d_outputs_);
     });
 }
 

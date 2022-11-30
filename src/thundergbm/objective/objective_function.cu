@@ -14,6 +14,8 @@ ObjectiveFunction *ObjectiveFunction::create(string name) {
     if (name == "multi:softmax") return new Softmax;
     if (name == "rank:pairwise") return new LambdaRank;
     if (name == "rank:ndcg") return new LambdaRankNDCG;
+    if (name == "mo-lab:mse") return new MultilabelObj<SquareLoss>;
+    if (name == "mo-reg:mse") return new RegressionObj<SquareLoss>;
     LOG(FATAL) << "undefined objective " << name;
     return nullptr;
 }

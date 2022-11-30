@@ -17,7 +17,7 @@ public:
         int rch_index;// index of right child
         int parent_index;// index of parent node
         float_type gain;// gain of splitting this node
-        float_type base_weight;
+        SyncArray<float_type> base_weight;
         int split_feature_id;
         float_type split_value;
         unsigned char split_bid;
@@ -26,13 +26,17 @@ public:
         bool is_valid;// non-valid nodes are those that are "children" of leaf nodes
         bool is_pruned;// pruned after pruning
 
-        GHPair sum_gh_pair;
+        //GHPair sum_gh_pair;
+        SyncArray<GHPair> sum_gh_pair;
 
         friend std::ostream &operator<<(std::ostream &os,
                                         const TreeNode &node);
 
         HOST_DEVICE void calc_weight(float_type lambda) {
-            this->base_weight = -sum_gh_pair.g / (sum_gh_pair.h + lambda);
+            int dimension = sum_gh_pair.size();
+            for(int i = 0; i < dimension; i++){
+                this->base_weight[i] = -sum_gh_pair[i].g / (sum_gh_pair[i].h + lambda);
+            }
         }
 
         HOST_DEVICE bool splittable() const {
@@ -54,7 +58,7 @@ public:
         return *this;
     }
 
-    void init2(const SyncArray<GHPair> &gradients, const GBMParam &param);
+    void init2(const SyncArray<GHPair> &gradients, const GBMParam &param, int d_outputs_=1);
 
     string dump(int depth) const;
 

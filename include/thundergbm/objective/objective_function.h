@@ -27,3 +27,4 @@ public:
 };
 
 #endif //THUNDERGBM_OBJECTIVE_FUNCTION_H
+

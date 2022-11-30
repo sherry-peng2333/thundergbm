@@ -172,6 +172,7 @@ public:
         return *this;
     }
 
+
     SyncArray(const SyncArray<T> &) = delete;
 
     SyncArray &operator=(const SyncArray<T> &) = delete;

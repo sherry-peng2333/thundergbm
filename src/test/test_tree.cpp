@@ -62,7 +62,7 @@ TEST_F(TreeTest, treenode){
 TEST_F(TreeTest, tree_init){
     SyncArray<GHPair> gradients(10);
     Tree tree;
-    tree.init2(gradients, param);
+    tree.init2(gradients, param, 1);
 
     // check the amount of tree nodes
     EXPECT_EQ(tree.nodes.size(), 127);
@@ -76,6 +76,6 @@ TEST_F(TreeTest, tree_init){
 TEST_F(TreeTest, tree_prune) {
     SyncArray<GHPair> gradients(10);
     Tree tree;
-    tree.init2(gradients, param);
+    tree.init2(gradients, param, 1);
     tree.prune_self(0.5);
 }

@@ -23,8 +23,8 @@ struct Shard {
 class SplitPoint {
 public:
     float_type gain;
-    GHPair fea_missing_gh;//missing gh in this segment
-    GHPair rch_sum_gh;//right child total gh (missing gh included if default2right)
+    SyncArray<GHPair> fea_missing_gh;//missing gh in this segment
+    SyncArray<GHPair> rch_sum_gh;//right child total gh (missing gh included if default2right)
     bool default_right;
     int nid;
 
