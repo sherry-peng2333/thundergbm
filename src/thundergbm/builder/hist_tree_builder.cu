@@ -323,18 +323,20 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 auto missing_gh_data = missing_gh.device_data();
                 auto cut_row_ptr = cut.cut_row_ptr.device_data();
                 auto hist_data = hist.device_data();
-                device_loop(n_partition, [=]__device__(int pid) {
+
+                for(int pid = 0; pid < n_partition; pid++){
                     int nid0 = pid / n_column;
                     int nid = nid0 + nid_offset;
                     if (!nodes_data[nid].splittable()) return;
                     int fid = pid % n_column;
-                    if (cut_row_ptr[fid + 1] != cut_row_ptr[fid]) {            
-                        for(int i = 0; i < d_outputs_; i++){
+                    auto sum_gh_pair_data = nodes_data[nid].sum_gh_pair.device_data();
+                    if (cut_row_ptr[fid + 1] != cut_row_ptr[fid]){
+                        device_loop(d_outputs_, [=]__device__(int i){
                             GHPair node_gh = hist_data[i*n_partition+nid0 * n_bins+cut_row_ptr[fid + 1] - 1];
-                            missing_gh_data[i*n_partition+pid] = nodes_data[nid].sum_gh_pair[i] - node_gh;
-                        }
+                            missing_gh_data[i*n_partition+pid] = sum_gh_pair_data[i] - node_gh;
+                        });
                     }
-                });
+                }
                 LOG(DEBUG) << missing_gh;
             }
         }
@@ -359,13 +361,14 @@ void HistTreeBuilder::find_split(int level, int device_id) {
             //for lambda expression
             float_type mcw = param.min_child_weight;
             float_type l = param.lambda;
-            device_loop(n_split, [=]__device__(int i) {
+
+            for(int i = 0; i < n_split; i++){
                 int nid0 = i / n_bins;
                 int nid = nid0 + nid_offset;
                 int fid = hist_fid[i % n_bins];
                 if (nodes_data[nid].is_valid && !ignored_set_data[fid]) {
                     int pid = nid0 * n_column + hist_fid[i];
-                    SyncArray<GHPair> father_gh = nodes_data[nid].sum_gh_pair;
+                    auto father_gh = nodes_data[nid].sum_gh_pair.device_data();
                     float_type default_to_left_gain = 0;
                     float_type default_to_right_gain = 0;
                     for(int j = 0; j < d_outputs_; j++){
@@ -384,7 +387,8 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                         gain_data[i] = -default_to_right_gain;//negative means default split to right
 
                 } else gain_data[i] = 0;
-            });
+            }
+
             LOG(DEBUG) << "gain = " << gain;
         }
 
@@ -442,14 +446,19 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 sp_data[i].gain = fabsf(best_split_gain);
                 sp_data[i].fval = cut_val_data[split_index % n_bins];
                 sp_data[i].split_bid = (unsigned char) (split_index % n_bins - cut_row_ptr_data[fid]);
-                sp_data[i].fea_missing_gh = missing_gh_data[i * n_column + hist_fid[split_index]];
                 sp_data[i].default_right = best_split_gain < 0;
-                sp_data[i].rch_sum_gh = hist_data[split_index];
-                for(int j = 0; j < d_outputs_; j++){
-                    sp_data[i].fea_missing_gh = missing_gh_data[j * n_partition + i * n_column + hist_fid[split_index]];
-                    sp_data[i].rch_sum_gh = hist_data[j * n_max_splits + split_index];
-                }
             });
+
+            for(int i = 0; i < n_nodes_in_level; i++){
+                auto spi_fea_missing_gh_data = sp_data[i].fea_missing_gh.device_data();
+                auto spi_rch_sum_gh_data = sp_data[i].rch_sum_gh.device_data();
+                device_loop(d_outputs_, [=]__device__(int j){
+                    spi_fea_missing_gh_data[j] = missing_gh_data[j * n_partition + i * n_column + hist_fid[split_index]];
+                    spi_rch_sum_gh_data[j] = hist_data[j * n_max_splits + split_index];
+                }
+                );
+            }
+
         }
     }
 

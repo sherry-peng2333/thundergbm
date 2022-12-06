@@ -8,6 +8,7 @@
 void Tree::init2(const SyncArray<GHPair> &gradients, const GBMParam &param, int d_outputs_) {
     TIMED_FUNC(timerObj);
     int n_max_nodes = static_cast<int>(pow(2, param.depth + 1) - 1);
+    this->d_outputs_ = d_outputs_;
     nodes = SyncArray<TreeNode>(n_max_nodes);
     auto node_data = nodes.device_data();
     
@@ -29,17 +30,19 @@ void Tree::init2(const SyncArray<GHPair> &gradients, const GBMParam &param, int 
     });
 
     //init root node
+    Tree::TreeNode &root_node = node_data[0];
     CHECK_EQ(gradients.size()%d_outputs_, 0);
-    SyncArray<GHPair> sum_gh(d_outputs_);
+    root_node.base_weight = SyncArray<float_type>(d_outputs_);
+    root_node.sum_gh_pair = SyncArray<GHPair>(d_outputs_);
+    auto base_weight_data = root_node.base_weight.device_data();
+    auto sum_gh_pair_data = root_node.sum_gh_pair.device_data();
+
     device_loop(gradients.size(), [=]__device__(int i){
-        sum_gh[i%d_outputs_] = sum_gh[i%d_outputs_]+gradients[i]
+        sum_gh_pair_data[i%d_outputs_] = sum_gh_pair_data[i%d_outputs_]+gradients[i];
     }
     //GHPair sum_gh = thrust::reduce(thrust::cuda::par, gradients.device_data(), gradients.device_end());
     float_type lambda = param.lambda;
     device_loop<1, 1>(1, [=]__device__(int i) {
-        Tree::TreeNode &root_node = node_data[0];
-        root_node.sum_gh_pair.resize(d_outputs_);
-        root_node.sum_gh_pair.copy_from(sum_gh);
         root_node.is_valid = true;
         root_node.calc_weight(lambda);
     });
@@ -85,7 +88,7 @@ std::ostream &operator<<(std::ostream &os, const Tree::TreeNode &node) {
     os << string_format("\nnid:%d,l:%d,v:%d,split_feature_id:%d,f:%f,gain:%f,r:%d,w:%f,", node.final_id, node.is_leaf,
                         node.is_valid,
                         node.split_feature_id, node.split_value, node.gain, node.default_right, node.base_weight);
-    os << "g/h:" << node.sum_gh_pair;
+    //os << "g/h:" << node.sum_gh_pair;
     return os;
 }
 

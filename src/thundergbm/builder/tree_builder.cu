@@ -19,7 +19,7 @@ void TreeBuilder::update_tree() {
         float_type rt_eps = param.rt_eps;
         float_type lambda = param.lambda;
 
-        device_loop(n_nodes_in_level, [=]__device__(int i) {
+        for(int i = 0; i < n_nodes_in_level; i++){
             float_type best_split_gain = sp_data[i].gain;
             if (best_split_gain > rt_eps) {
                 //do split
@@ -32,22 +32,28 @@ void TreeBuilder::update_tree() {
                 Tree::TreeNode &rch = nodes_data[node.rch_index];//right child
                 lch.is_valid = true;
                 rch.is_valid = true;
+                lch.base_weight = SyncArray<float_type>(d_outputs_);
+                rch.base_weight = SyncArray<float_type>(d_outputs_);
+                lch.sum_gh_pair = SyncArray<GHPair>(d_outputs_);
+                rch.sum_gh_pair = SyncArray<GHPair>(d_outputs_);
                 node.split_feature_id = sp_data[i].split_fea_id;
-                SyncArray<GHPair> p_missing_gh = sp_data[i].fea_missing_gh.device_data();
+                auto p_missing_gh = sp_data[i].fea_missing_gh.device_data();
                 //todo process begin
                 node.split_value = sp_data[i].fval;
                 node.split_bid = sp_data[i].split_bid;
-                int dimension = sp_data[i].rch_sum_gh.size();
-                rch.sum_gh_pair.copy_from(sp_data[i].rch_sum_gh, dimension);
+                rch.sum_gh_pair.copy_from(sp_data[i].rch_sum_gh, d_outputs_);
+                auto lsum_gh_pair_data = lch.sum_gh_pair.device_data();
+                auto rsum_gh_pair_data = rch.sum_gh_pair.device_data();
+                auto nsum_gh_pair_data = node.sum_gh_pair.device_data();
                 if (sp_data[i].default_right) {
-                    for(int j = 0; j < dimension; j++){
-                        rch.sum_gh_pair[j] = rch.sum_gh_pair[j] + p_missing_gh[j];
-                    }   
+                    device_loop(d_outputs_, [=]__device__(int j){
+                        rsum_gh_pair_data[j] = rsum_gh_pair_data[j] + p_missing_gh[j];
+                    };  
                     node.default_right = true;
                 }
-                for(int j = 0; j < dimension; j++){
-                    lch.sum_gh_pair[j] = node.sum_gh_pair[j] - rch.sum_gh_pair[j];
-                }
+                device_loop(d_outputs_, [=]__device__(int j){
+                    lsum_gh_pair_data[j] = nsum_gh_pair_data[j] - rsum_gh_pair_data[j];
+                };
                 lch.calc_weight(lambda);
                 rch.calc_weight(lambda);
             } else {
@@ -59,7 +65,7 @@ void TreeBuilder::update_tree() {
                 nodes_data[node.lch_index].is_valid = false;
                 nodes_data[node.rch_index].is_valid = false;
             }
-        });
+        }
         LOG(DEBUG) << tree.nodes;
     });
 }

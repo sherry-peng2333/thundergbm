@@ -33,9 +33,10 @@ public:
                                         const TreeNode &node);
 
         HOST_DEVICE void calc_weight(float_type lambda) {
-            int dimension = sum_gh_pair.size();
-            for(int i = 0; i < dimension; i++){
-                this->base_weight[i] = -sum_gh_pair[i].g / (sum_gh_pair[i].h + lambda);
+            auto sum_gh_pair_data = sum_gh_pair.device_data();
+            auto base_weight_data = base_weight.device_data();
+            for(int i = 0; i < d_outputs_; i++){
+                base_weight_data[i] = -sum_gh_pair_data[i].g / (sum_gh_pair_data[i].h + lambda);
             }
         }
 
@@ -63,6 +64,8 @@ public:
     string dump(int depth) const;
 
     SyncArray<Tree::TreeNode> nodes;
+
+    int d_outputs_;
 
     void prune_self(float_type gamma);
 

@@ -202,7 +202,8 @@ extern "C" {
         CHECK(n_nodes == tree.nodes.size());
         for(int i = 0; i < n_nodes; i++){
             Tree::TreeNode node = tree.nodes.host_data()[i];
-            int dimension = node.sum_gh_pair.size();
+            auto sum_gh_pair_data = node.sum_gh_pair.host_data();
+            int dimension = tree.d_outputs_;
             children_left[i] = node.lch_index;
             children_right[i] = node.rch_index;
             if(node.default_right)
@@ -221,7 +222,7 @@ extern "C" {
             features[i] = node.split_feature_id;
             thresholds[i] = node.split_value;
             for(int j = 0; j < dimension; j++){
-                node_sample_weights[i*dimension+j] = node.sum_gh_pair[j].h;
+                node_sample_weights[i*dimension+j] = sum_gh_pair_data[j].h;
             }
         }
 //        for(int i = 0; i < n_nodes; i++){
