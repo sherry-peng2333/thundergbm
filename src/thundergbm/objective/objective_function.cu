@@ -5,6 +5,7 @@
 #include "thundergbm/objective/regression_obj.h"
 #include "thundergbm/objective/multiclass_obj.h"
 #include "thundergbm/objective/ranking_obj.h"
+#include "thundergbm/objective/multilabel_obj.h"
 
 ObjectiveFunction *ObjectiveFunction::create(string name) {
     if (name == "reg:linear") return new RegressionObj<SquareLoss>;

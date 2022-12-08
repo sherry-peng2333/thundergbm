@@ -41,21 +41,21 @@ void TreeBuilder::update_tree() {
                 //todo process begin
                 node.split_value = sp_data[i].fval;
                 node.split_bid = sp_data[i].split_bid;
-                rch.sum_gh_pair.copy_from(sp_data[i].rch_sum_gh, d_outputs_);
+                rch.sum_gh_pair.copy_from(sp_data[i].rch_sum_gh);
                 auto lsum_gh_pair_data = lch.sum_gh_pair.device_data();
                 auto rsum_gh_pair_data = rch.sum_gh_pair.device_data();
                 auto nsum_gh_pair_data = node.sum_gh_pair.device_data();
                 if (sp_data[i].default_right) {
                     device_loop(d_outputs_, [=]__device__(int j){
                         rsum_gh_pair_data[j] = rsum_gh_pair_data[j] + p_missing_gh[j];
-                    };  
+                    });  
                     node.default_right = true;
                 }
                 device_loop(d_outputs_, [=]__device__(int j){
                     lsum_gh_pair_data[j] = nsum_gh_pair_data[j] - rsum_gh_pair_data[j];
-                };
-                lch.calc_weight(lambda);
-                rch.calc_weight(lambda);
+                });
+                lch.calc_weight(lambda, d_outputs_);
+                rch.calc_weight(lambda, d_outputs_);
             } else {
                 //set leaf
                 if (sp_data[i].nid == -1) return;
@@ -76,13 +76,14 @@ void TreeBuilder::predict_in_training(int k) {
         auto nid_data = ins2node_id[device_id].device_data();
         const Tree::TreeNode *nodes_data = trees[device_id].nodes.device_data();
         auto lr = param.learning_rate;
-        device_loop(n_instances, [=]__device__(int i) {
+        for(int i = 0; i < n_instances; i++){
             int nid = nid_data[i];
             while (nid != -1 && (nodes_data[nid].is_pruned)) nid = nodes_data[nid].parent_index;
-            for(int j = 0; j < d_outputs_; j++){
-                y_predict_data[i * d_outputs_ + j] += lr * nodes_data[nid].base_weight[j];
-            }
-        });
+            auto lr_nodes_data = nodes_data[nid].base_weight.device_data();
+            device_loop(d_outputs_, [=]__device__(int j){
+                y_predict_data[i * d_outputs_ + j] += lr * lr_nodes_data[j];
+            });
+        }
     });
 }
 
@@ -136,12 +137,24 @@ void TreeBuilder::split_point_all_reduce(int depth) {
             int sp_nid = local_sp_data[j].nid;
             if (sp_nid == -1) continue;
             int global_pos = sp_nid - nid_offset;
-            if (!active_sp[global_pos])
-                global_sp_data[global_pos] = local_sp_data[j];
-            else
-                global_sp_data[global_pos] = (global_sp_data[global_pos].gain >= local_sp_data[j].gain)
-                                             ?
-                                             global_sp_data[global_pos] : local_sp_data[j];
+            if (!active_sp[global_pos]){
+                global_sp_data[global_pos].gain = local_sp_data[j].gain;
+                global_sp_data[global_pos].default_right = local_sp_data[j].default_right;
+                global_sp_data[global_pos].nid = local_sp_data[j].nid;
+                global_sp_data[global_pos].split_fea_id = local_sp_data[j].split_fea_id;
+                global_sp_data[global_pos].fval = local_sp_data[j].fval;
+                global_sp_data[global_pos].split_bid = local_sp_data[j].split_bid;
+                global_sp_data[global_pos].fea_missing_gh.copy_from(local_sp_data[j].fea_missing_gh);
+                global_sp_data[global_pos].rch_sum_gh.copy_from(local_sp_data[j].rch_sum_gh);}
+            else if(global_sp_data[global_pos].gain < local_sp_data[j].gain){
+                global_sp_data[global_pos].gain = local_sp_data[j].gain;
+                global_sp_data[global_pos].default_right = local_sp_data[j].default_right;
+                global_sp_data[global_pos].nid = local_sp_data[j].nid;
+                global_sp_data[global_pos].split_fea_id = local_sp_data[j].split_fea_id;
+                global_sp_data[global_pos].fval = local_sp_data[j].fval;
+                global_sp_data[global_pos].split_bid = local_sp_data[j].split_bid;
+                global_sp_data[global_pos].fea_missing_gh.copy_from(local_sp_data[j].fea_missing_gh);
+                global_sp_data[global_pos].rch_sum_gh.copy_from(local_sp_data[j].rch_sum_gh);}
             active_sp[global_pos] = true;
         }
     }

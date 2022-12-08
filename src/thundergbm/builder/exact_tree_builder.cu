@@ -1,6 +1,8 @@
 //
 // Created by ss on 19-1-20.
 //
+
+
 #include "thundergbm/builder/exact_tree_builder.h"
 
 #include "thundergbm/util/multi_device.h"
@@ -13,7 +15,7 @@
 #include "thrust/binary_search.h"
 
 void ExactTreeBuilder::find_split(int level, int device_id) {
-    const SparseColumns &columns = shards[device_id].columns;
+    /*const SparseColumns &columns = shards[device_id].columns;
     SyncArray<int> &nid = ins2node_id[device_id];
     SyncArray<GHPair> &gh_pair = gradients[device_id];
     Tree &tree = trees[device_id];
@@ -292,11 +294,11 @@ void ExactTreeBuilder::find_split(int level, int device_id) {
     }
 
     LOG(DEBUG) << "split points (gain/fea_id/nid): " << sp;
-    cudaDeviceSynchronize();
+    cudaDeviceSynchronize();*/
 }
 
 void ExactTreeBuilder::update_ins2node_id() {
-    DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
+    /*DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
         //set new node id for each instance
         SparseColumns &columns = shards[device_id].columns;
         SyncArray<bool> has_splittable(1);
@@ -336,11 +338,11 @@ void ExactTreeBuilder::update_ins2node_id() {
         }
         LOG(DEBUG) << "new tree_id = " << ins2node_id[device_id];
         has_split[device_id] = has_splittable.host_data()[0];
-    });
+    });*/
 }
 
 void ExactTreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
-    TreeBuilder::init(dataset, param);
+    /*TreeBuilder::init(dataset, param);
     //TODO refactor
     //init shards
     int n_device = param.n_device;
@@ -364,10 +366,11 @@ void ExactTreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
     cudaError_t err = cudaGetDeviceCount(&gpu_num);
     std::atexit([](){
         SyncMem::clear_cache();
-    });
+    });*/
 }
 
 void ExactTreeBuilder::ins2node_id_all_reduce(int depth) {
+    /*
     //get global ins2node id
     {
         SyncArray<int> local_ins2node_id(n_instances);
@@ -407,5 +410,7 @@ void ExactTreeBuilder::ins2node_id_all_reduce(int depth) {
 
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
         ins2node_id[device_id].copy_from(ins2node_id.front());
-    });
+    });*/
 }
+
+

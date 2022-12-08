@@ -10,7 +10,7 @@
 
 vector<float_type> Predictor::predict(const GBMParam &model_param, const vector<vector<Tree>> &boosted_model,
                                       const DataSet &dataSet) {
-    SyncArray<float_type> y_predict;
+    /*SyncArray<float_type> y_predict;
     predict_raw(model_param, boosted_model, dataSet, y_predict);
     //convert the aggregated values to labels, probabilities or ranking scores.
     std::unique_ptr<ObjectiveFunction> obj;
@@ -26,12 +26,12 @@ vector<float_type> Predictor::predict(const GBMParam &model_param, const vector<
     obj->predict_transform(y_predict);
     vector<float_type> y_pred_vec(y_predict.size());
     memcpy(y_pred_vec.data(), y_predict.host_data(), sizeof(float_type) * y_predict.size());
-    return y_pred_vec;
+    return y_pred_vec;*/
 }
 
 void Predictor::predict_raw(const GBMParam &model_param, const vector<vector<Tree>> &boosted_model,
                             const DataSet &dataSet, SyncArray<float_type> &y_predict) {
-    TIMED_SCOPE(timerObj, "predict");
+    /*TIMED_SCOPE(timerObj, "predict");
     int n_instances = dataSet.n_instances();
     int n_features = dataSet.n_features();
 
@@ -180,5 +180,5 @@ void Predictor::predict_raw(const GBMParam &model_param, const vector<vector<Tre
                 predict_data_class[iid] += sum;
             }//end all tree prediction
         });
-    }
+    }*/
 }

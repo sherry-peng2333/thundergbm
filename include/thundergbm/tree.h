@@ -32,10 +32,10 @@ public:
         friend std::ostream &operator<<(std::ostream &os,
                                         const TreeNode &node);
 
-        HOST_DEVICE void calc_weight(float_type lambda) {
+        HOST_DEVICE void calc_weight(float_type lambda, int dimension) {
             auto sum_gh_pair_data = sum_gh_pair.device_data();
             auto base_weight_data = base_weight.device_data();
-            for(int i = 0; i < d_outputs_; i++){
+            for(int i = 0; i < dimension; i++){
                 base_weight_data[i] = -sum_gh_pair_data[i].g / (sum_gh_pair_data[i].h + lambda);
             }
         }
@@ -59,7 +59,7 @@ public:
         return *this;
     }
 
-    void init2(const SyncArray<GHPair> &gradients, const GBMParam &param, int d_outputs_=1);
+    void init2(SyncArray<GHPair> &gradients, const GBMParam &param, int d_outputs_=1);
 
     string dump(int depth) const;
 

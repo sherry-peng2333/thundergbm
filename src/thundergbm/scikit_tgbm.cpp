@@ -200,10 +200,10 @@ extern "C" {
             int* features, float* thresholds, float* values, float* node_sample_weights){
         Tree& tree = model[tree_id];
         CHECK(n_nodes == tree.nodes.size());
+        int dimension = tree.d_outputs_;
         for(int i = 0; i < n_nodes; i++){
-            Tree::TreeNode node = tree.nodes.host_data()[i];
+            Tree::TreeNode &node = tree.nodes.host_data()[i];
             auto sum_gh_pair_data = node.sum_gh_pair.host_data();
-            int dimension = tree.d_outputs_;
             children_left[i] = node.lch_index;
             children_right[i] = node.rch_index;
             if(node.default_right)
@@ -214,7 +214,10 @@ extern "C" {
                 children_left[i] = -1;
                 children_right[i] = -1;
                 children_default[i] = -1;
-                values[i] = node.base_weight;
+                auto node_base_weight_data = node.base_weight.host_data();
+                for(int j = 0; j < dimension; j++){
+                    values[i*dimension+j] = node_base_weight_data[j];
+                } 
             }
             else{
                 values[i] = 0;

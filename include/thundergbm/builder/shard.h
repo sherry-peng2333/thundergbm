@@ -40,7 +40,7 @@ public:
     }
 
     friend std::ostream &operator<<(std::ostream &output, const SplitPoint &sp) {
-        output << sp.gain << "/" << sp.split_fea_id << "/" << sp.nid << "/" << sp.rch_sum_gh;
+        output << sp.gain << "/" << sp.split_fea_id << "/" << sp.nid << "/" << sp.rch_sum_gh.host_data();
         return output;
     }
 };

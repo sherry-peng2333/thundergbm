@@ -124,7 +124,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                     int feature_offset = cut_row_ptr_data[fid];
                                     for(int i = 0; i < d_outputs_; i++){
                                         const GHPair src = gh_data[iid*d_outputs_+i];
-                                        GHPair &dest = hist_data[i*n_max_splits+feature_offset + bid]
+                                        GHPair &dest = hist_data[i*n_max_splits+feature_offset + bid];
                                         if(src.h != 0)
                                             atomicAdd(&dest.h, src.h);
                                         if(src.g != 0)
@@ -217,7 +217,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                 int nid0 = nid0_to_compute;
                                 auto idx_begin = node_ptr.host_data()[nid0];
                                 auto idx_end = node_ptr.host_data()[nid0 + 1];
-                                auto hist_data = hist.device_data()
+                                auto hist_data = hist.device_data();
                                 //auto hist_data = hist.device_data() + nid0 * n_bins * d_outputs_;
                                 this->total_hist_num++;
 
@@ -230,7 +230,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                             int feature_offset = cut_row_ptr_data[fid];
                                             for(int i = 0; i < d_outputs_; i++){
                                                 const GHPair src = gh_data[iid*d_outputs_+i];
-                                                GHPair &dest = hist_data[i*n_max_splits+nid0*n_bins+feature_offset + bid]
+                                                GHPair &dest = hist_data[i*n_max_splits+nid0*n_bins+feature_offset + bid];
                                                 if(src.h != 0)
                                                     atomicAdd(&dest.h, src.h);
                                                 if(src.g != 0)
@@ -289,7 +289,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                 device_loop(n_bins * d_outputs_, [=]__device__(int i) {
                                     int d = i / n_bins;
                                     int bid = i % n_bins;
-                                    hist_data_computed[d*n_max_splits+bid] = father_hist_data[d*n_max_splits+bid]-hist_data_computed[d*n_max_splits+bid]
+                                    hist_data_computed[d*n_max_splits+bid] = father_hist_data[d*n_max_splits+bid]-hist_data_computed[d*n_max_splits+bid];
                                 });
                             }
                             auto t_copy_end = timer.now();
@@ -344,8 +344,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
         SyncArray<float_type> gain(n_max_splits);
         {
 //            TIMED_SCOPE(timerObj, "calculate gain");
-            auto compute_gain = []__device__(GHPair father, GHPair lch, GHPair rch, float_type min_child_weight,
-                    float_type lambda) -> float_type {
+            auto compute_gain = [](GHPair father, GHPair lch, GHPair rch, float_type min_child_weight, float_type lambda) -> float {
                     if (lch.h >= min_child_weight && rch.h >= min_child_weight)
                     return (lch.g * lch.g) / (lch.h + lambda) + (rch.g * rch.g) / (rch.h + lambda) -
             (father.g * father.g) / (father.h + lambda);
@@ -353,11 +352,11 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                     return 0;
             };
 
-            const Tree::TreeNode *nodes_data = tree.nodes.device_data();
-            GHPair *gh_prefix_sum_data = hist.device_data();
-            float_type *gain_data = gain.device_data();
-            const auto missing_gh_data = missing_gh.device_data();
-            auto ignored_set_data = ignored_set.device_data();
+            const Tree::TreeNode *nodes_data = tree.nodes.host_data();
+            GHPair *gh_prefix_sum_data = hist.host_data();
+            float_type *gain_data = gain.host_data();
+            const auto missing_gh_data = missing_gh.host_data();
+            auto ignored_set_data = ignored_set.host_data();
             //for lambda expression
             float_type mcw = param.min_child_weight;
             float_type l = param.lambda;
@@ -368,7 +367,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 int fid = hist_fid[i % n_bins];
                 if (nodes_data[nid].is_valid && !ignored_set_data[fid]) {
                     int pid = nid0 * n_column + hist_fid[i];
-                    auto father_gh = nodes_data[nid].sum_gh_pair.device_data();
+                    auto father_gh = nodes_data[nid].sum_gh_pair.host_data();
                     float_type default_to_left_gain = 0;
                     float_type default_to_right_gain = 0;
                     for(int j = 0; j < d_outputs_; j++){
@@ -450,6 +449,9 @@ void HistTreeBuilder::find_split(int level, int device_id) {
             });
 
             for(int i = 0; i < n_nodes_in_level; i++){
+                int_float bst = best_idx_gain_data[i];
+                float_type best_split_gain = get<1>(bst);
+                int split_index = get<0>(bst);
                 auto spi_fea_missing_gh_data = sp_data[i].fea_missing_gh.device_data();
                 auto spi_rch_sum_gh_data = sp_data[i].rch_sum_gh.device_data();
                 device_loop(d_outputs_, [=]__device__(int j){
