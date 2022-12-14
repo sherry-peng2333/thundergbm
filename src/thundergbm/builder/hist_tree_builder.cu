@@ -115,7 +115,8 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                         auto dense_bin_id_data = dense_bin_id.device_data();
                         auto max_num_bin = param.max_num_bin;
                         auto n_instances = this->n_instances;
-                        if (smem_size > 48 * 1024) {
+                        if (smem_size > 600) {
+                            //48 * 1024
                             device_loop(n_instances * n_column, [=]__device__(int i) {
                                 int iid = i / n_column;
                                 int fid = i % n_column;
@@ -221,7 +222,8 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                 //auto hist_data = hist.device_data() + nid0 * n_bins * d_outputs_;
                                 this->total_hist_num++;
 
-                                if (smem_size > 48 * 1024) {
+                                if (smem_size > 600) {
+                                    //48 * 1024
                                     device_loop((idx_end - idx_begin) * n_column, [=]__device__(int i) {
                                         int iid = node_idx_data[i / n_column + idx_begin];
                                         int fid = i % n_column;
@@ -327,6 +329,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 for(int pid = 0; pid < n_partition; pid++){
                     int nid0 = pid / n_column;
                     int nid = nid0 + nid_offset;
+                    LOG(INFO) << "checkpoint ...";
                     if (!nodes_data[nid].splittable()) return;
                     int fid = pid % n_column;
                     auto sum_gh_pair_data = nodes_data[nid].sum_gh_pair.device_data();
@@ -526,16 +529,19 @@ void HistTreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
         columns.csr2csc_cpu(dataset, v_columns);
     else
         columns.csr2csc_gpu(dataset, v_columns);
+    LOG(INFO) << "DDDDDDDDDDDDDDDDD";
     cut = vector<HistCut>(param.n_device);
     dense_bin_id = MSyncArray<unsigned char>(param.n_device);
     last_hist = MSyncArray<GHPair>(param.n_device);
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
+        LOG(INFO) << "HHHHHHHHHHHHHHHHH";
         if(dataset.use_cpu)
             cut[device_id].get_cut_points2(shards[device_id].columns, param.max_num_bin, n_instances);
         else
             cut[device_id].get_cut_points3(shards[device_id].columns, param.max_num_bin, n_instances);
-        last_hist[device_id].resize((2 << param.depth) * cut[device_id].cut_points_val.size());
+        last_hist[device_id].resize((2 << param.depth) * cut[device_id].cut_points_val.size()* dataset.d_outputs_);
     });
+    LOG(INFO) << "LLLLLLLLLLLLLLLLLL";
     get_bin_ids();
     for (int i = 0; i < param.n_device; ++i) {
         v_columns[i].release();

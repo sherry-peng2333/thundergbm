@@ -33,11 +33,12 @@ void SparseColumns::csr2csc_gpu(
     val.resize(dataset.csr_val.size());
     col_idx.resize(dataset.csr_col_idx.size());
     row_ptr.resize(dataset.csr_row_ptr.size());
-
+    LOG(INFO) << "checkpoint1...";
     // copy data to the three arrays
     val.copy_from(dataset.csr_val.data(), val.size());
     col_idx.copy_from(dataset.csr_col_idx.data(), col_idx.size());
     row_ptr.copy_from(dataset.csr_row_ptr.data(), row_ptr.size());
+    LOG(INFO) << "checkpoint2...";
     cusparseHandle_t handle;
     cusparseMatDescr_t descr;
     cusparseCreate(&handle);
@@ -91,12 +92,14 @@ void SparseColumns::csr2csc_gpu(
     int gpu_num;
     cudaError_t err = cudaGetDeviceCount(&gpu_num);
     std::atexit([]() { SyncMem::clear_cache(); });
-
+    
     int n_device = v_columns.size();
     int ave_n_columns = n_column / n_device;
     DO_ON_MULTI_DEVICES(n_device, [&](int device_id) {
+        LOG(INFO) << "checkpoint3...";
         SparseColumns &columns = *v_columns[device_id];
         const int *csc_col_ptr_data = csc_col_ptr.host_data();
+        LOG(INFO) << "checkpoint4...";
         int first_col_id = device_id * ave_n_columns;
         int n_column_sub = (device_id < n_device - 1) ? ave_n_columns
                                                       : n_column - first_col_id;
@@ -112,14 +115,14 @@ void SparseColumns::csr2csc_gpu(
         columns.csc_val.resize(nnz_sub);
         columns.csc_row_idx.resize(nnz_sub);
         columns.csc_col_ptr.resize(n_column_sub + 1);
-
+        
         columns.csc_val.copy_from(csc_val.host_data() + first_col_start,
                                   nnz_sub);
         columns.csc_row_idx.copy_from(csc_row_idx.host_data() + first_col_start,
                                       nnz_sub);
         columns.csc_col_ptr.copy_from(csc_col_ptr.host_data() + first_col_id,
                                       n_column_sub + 1);
-
+        LOG(INFO) << "checkpoint5...";
         int *csc_col_ptr_2d_data = columns.csc_col_ptr.device_data();
         correct_start(csc_col_ptr_2d_data, first_col_start, n_column_sub);
         // correct segment start positions
@@ -127,7 +130,7 @@ void SparseColumns::csr2csc_gpu(
         cub_seg_sort_by_key(columns.csc_val, columns.csc_row_idx,
                             columns.csc_col_ptr, false);
     });
-
+    LOG(INFO) << "checkpoint6...";
     auto t_end = timer.now();
     std::chrono::duration<float> used_time = t_end - t_start;
     LOG(INFO) << "Converting csr to csc using time: " << used_time.count()

@@ -570,7 +570,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
         vector<vector<int>> mo_row_len_(nthread);
         vector<int> max_feature(nthread, 0);
         vector<int> max_label(nthread, 0);
-        bool fis_zero_base = false;                // feature indices start from 0
+        bool fis_zero_base = true;                // feature indices start from 0
         bool lis_zero_base = true;                 // label indices start from 0
 
 #pragma omp parallel num_threads(nthread)
@@ -657,8 +657,9 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
         // get the number of features
         for (int i = 0; i < nthread; i++) {
             if (max_feature[i] > n_features_)
-                n_features_ = max_feature[i];
+                n_features_ = max_feature[i]; 
         }
+        if(fis_zero_base) n_features_ = n_features_ + 1;
         // get the dimension of outputs
         if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels
             for (int i = 0; i < nthread; i++) {
