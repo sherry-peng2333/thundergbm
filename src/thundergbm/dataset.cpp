@@ -14,7 +14,7 @@ size_t DataSet::n_features() const {
 }
 
 size_t DataSet::n_instances() const {
-    return this->y.size();
+    return this->y.size()/d_outputs_;
 }
 
 size_t DataSet::n_instances_mo() const {
@@ -712,7 +712,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
 
     ifs.close();
     free(buffer);
-    LOG(INFO) << "#instances = " << this->n_instances_mo() << ", #features = " << this->n_features();
+    LOG(INFO) << "#instances = " << this->n_instances() << ", #features = " << this->n_features();
     //if (ObjectiveFunction::need_load_group_file(param.objective)) load_group_file(file_name + ".group");
     //if (ObjectiveFunction::need_group_label(param.objective)) {
         //group_label();

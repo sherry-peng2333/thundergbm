@@ -529,19 +529,16 @@ void HistTreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
         columns.csr2csc_cpu(dataset, v_columns);
     else
         columns.csr2csc_gpu(dataset, v_columns);
-    LOG(INFO) << "DDDDDDDDDDDDDDDDD";
     cut = vector<HistCut>(param.n_device);
     dense_bin_id = MSyncArray<unsigned char>(param.n_device);
     last_hist = MSyncArray<GHPair>(param.n_device);
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
-        LOG(INFO) << "HHHHHHHHHHHHHHHHH";
         if(dataset.use_cpu)
             cut[device_id].get_cut_points2(shards[device_id].columns, param.max_num_bin, n_instances);
         else
             cut[device_id].get_cut_points3(shards[device_id].columns, param.max_num_bin, n_instances);
         last_hist[device_id].resize((2 << param.depth) * cut[device_id].cut_points_val.size()* dataset.d_outputs_);
     });
-    LOG(INFO) << "LLLLLLLLLLLLLLLLLL";
     get_bin_ids();
     for (int i = 0; i < param.n_device; ++i) {
         v_columns[i].release();

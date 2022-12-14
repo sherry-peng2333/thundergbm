@@ -46,7 +46,6 @@ vector<vector<Tree>> TreeTrainer::train(GBMParam &param, const DataSet &dataset)
     vector<vector<Tree>> boosted_model;
     Booster booster;
     booster.init(dataset, param);
-    LOG(INFO) << "booster init ...";
     std::chrono::high_resolution_clock timer;
     auto start = timer.now();
     for (int i = 0; i < param.n_trees; ++i) {

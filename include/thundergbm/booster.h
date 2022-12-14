@@ -45,16 +45,13 @@ void Booster::init(const DataSet &dataSet, const GBMParam &param) {
     obj->configure(param, dataSet);
     metric.reset(Metric::create(obj->default_metric_name()));
     metric->configure(param, dataSet);
-    LOG(INFO) << "checkpoint1 ...";
     n_devices = param.n_device;
     int n_outputs = param.num_class * dataSet.n_instances();
     gradients = MSyncArray<GHPair>(n_devices, n_outputs);
     y = MSyncArray<float_type>(n_devices, dataSet.n_instances()*dataSet.d_outputs_);
-    LOG(INFO) << "checkpoint2 ...";
     DO_ON_MULTI_DEVICES(n_devices, [&](int device_id) {
         y[device_id].copy_from(dataSet.y.data(), dataSet.n_instances()*dataSet.d_outputs_);
     });
-    LOG(INFO) << "checkpoint3 ...";
 }
 
 void Booster::boost(vector<vector<Tree>> &boosted_model) {
