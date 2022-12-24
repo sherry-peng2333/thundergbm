@@ -11,11 +11,11 @@ void TreeBuilder::update_tree() {
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
         auto& sp = this->sp[device_id];
         auto& tree = this->trees[device_id];
-        auto sp_data = sp.device_data();
+        auto sp_data = sp.host_data();
         LOG(DEBUG) << sp;
         int n_nodes_in_level = sp.size();
 
-        Tree::TreeNode *nodes_data = tree.nodes.device_data();
+        Tree::TreeNode *nodes_data = tree.nodes.host_data();
         float_type rt_eps = param.rt_eps;
         float_type lambda = param.lambda;
 
@@ -183,16 +183,18 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
             this->gradients[device_id].set_device_data(const_cast<GHPair *>(gradients[device_id].device_data() + k * n_instances * d_outputs_));
             this->trees[device_id].init2(this->gradients[device_id], param, this->d_outputs_);
         });
-
         for (int level = 0; level < param.depth; ++level) {
             DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
                 find_split(level, device_id);
             });
             split_point_all_reduce(level);
+            LOG(INFO) << "split_point_all_reduce";
             {
                 TIMED_SCOPE(timerObj, "apply sp");
                 update_tree();
+                LOG(INFO) << "update_tree";
                 update_ins2node_id();
+                LOG(INFO) << "update_ins2node_id";
                 {
                     LOG(TRACE) << "gathering ins2node id";
                     //get final result of the reset instance id to node id
@@ -215,5 +217,6 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
         tree.nodes.resize(this->trees.front().nodes.size());
         tree.nodes.copy_from(this->trees.front().nodes);
     }
+    LOG(INFO) << "one tree............";
     return trees;
 }

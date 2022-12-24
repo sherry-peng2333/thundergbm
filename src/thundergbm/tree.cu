@@ -11,7 +11,6 @@ void Tree::init2(SyncArray<GHPair> &gradients, const GBMParam &param, int d_outp
     this->d_outputs_ = d_outputs_;
     nodes = SyncArray<TreeNode>(n_max_nodes);
     auto node_data = nodes.device_data();
-    auto noda_host_data = nodes.host_data();
     
     device_loop(n_max_nodes, [=]__device__(int i) {
         node_data[i].final_id = i;
@@ -30,31 +29,33 @@ void Tree::init2(SyncArray<GHPair> &gradients, const GBMParam &param, int d_outp
         }
     });
 
+    auto node_host_data = nodes.host_data();
+
     //init root node
-    //Tree::TreeNode &root_node = node_data[0];
     CHECK_EQ(gradients.size()%d_outputs_, 0);
-    noda_host_data[0].base_weight = SyncArray<float_type>(d_outputs_);
-    noda_host_data[0].sum_gh_pair = SyncArray<GHPair>(d_outputs_);
+    node_host_data[0].base_weight = SyncArray<float_type>(d_outputs_);
+    node_host_data[0].sum_gh_pair = SyncArray<GHPair>(d_outputs_);
 
-    SyncArray<GHPair> temp_sum_gh_pair(d_outputs_);
-    auto temp_sum_gh_pair_data = temp_sum_gh_pair.device_data();
-    //auto base_weight_data = noda_host_data[0].base_weight.device_data();
-    //auto sum_gh_pair_data = noda_host_data[0].sum_gh_pair.device_data();
-    auto gradients_data = gradients.device_data();
-
-    device_loop(gradients.size(), [=]__device__(int i){
-        int id = i%d_outputs_;
-        temp_sum_gh_pair_data[id] = temp_sum_gh_pair_data[id]+gradients_data[i];
-    });
-    noda_host_data[0].sum_gh_pair.copy_from(temp_sum_gh_pair);
-
-    //GHPair sum_gh = thrust::reduce(thrust::cuda::par, gradients.device_data(), gradients.device_end());
+//    SyncArray<GHPair> temp_sum_gh_pair(d_outputs_);
+//    auto temp_sum_gh_pair_data = temp_sum_gh_pair.device_data();
+    auto gradients_data = gradients.host_data();
+    auto root_sum_gh_pair = node_host_data[0].sum_gh_pair.host_data();
+    int id;
+    for(int i = 0; i < gradients.size(); i++) {
+        id = i % d_outputs_;
+        root_sum_gh_pair[id] = root_sum_gh_pair[id] + gradients_data[i];
+    }
     float_type lambda = param.lambda;
-    device_loop<1, 1>(1, [=]__device__(int i) {
-        Tree::TreeNode &root_node = node_data[0];
-        root_node.is_valid = true;
-        root_node.calc_weight(lambda, this->d_outputs_);
-    });
+    node_host_data[0].is_valid = true;
+    node_host_data[0].calc_weight(lambda, this->d_outputs_);
+    //GHPair sum_gh = thrust::reduce(thrust::cuda::par, gradients.device_data(), gradients.device_end());
+
+//    auto node_data2 = nodes.device_data();
+//    device_loop<1, 1>(1, [=]__device__(int i) {
+//        Tree::TreeNode &root_node = node_data2[0];
+//        root_node.is_valid = true;
+//        root_node.calc_weight(lambda, this->d_outputs_);
+//    });
 }
 
 string Tree::dump(int depth) const {

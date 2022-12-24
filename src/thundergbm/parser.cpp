@@ -23,7 +23,7 @@ void Parser::parse_param(GBMParam &model_param, int argc, char **argv){
     model_param.learning_rate = 0.5;
     model_param.objective = "mo-reg:mse";
     model_param.num_class = 1;
-    model_param.path = "../dataset/test_train_mo.txt";
+    model_param.path = "../../dataset/test_train_mo.txt";
     model_param.tree_method = "hist";
     model_param.tree_per_rounds = 1; // # tree of each round, depends on # class
 
