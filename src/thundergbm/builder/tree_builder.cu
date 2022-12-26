@@ -73,9 +73,10 @@ void TreeBuilder::update_tree() {
 void TreeBuilder::predict_in_training(int k) {
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
         auto y_predict_data = y_predict[device_id].device_data() + k * n_instances * d_outputs_;
-        auto nid_data = ins2node_id[device_id].device_data();
-        const Tree::TreeNode *nodes_data = trees[device_id].nodes.device_data();
+        auto nid_data = ins2node_id[device_id].host_data();
+        const Tree::TreeNode *nodes_data = trees[device_id].nodes.host_data();
         auto lr = param.learning_rate;
+        int d_outputs_ = this->d_outputs_;
         for(int i = 0; i < n_instances; i++){
             int nid = nid_data[i];
             while (nid != -1 && (nodes_data[nid].is_pruned)) nid = nodes_data[nid].parent_index;

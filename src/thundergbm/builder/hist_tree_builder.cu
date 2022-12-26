@@ -331,7 +331,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 for(int pid = 0; pid < n_partition; pid++){
                     int nid0 = pid / n_column;
                     int nid = nid0 + nid_offset;
-                    if (!nodes_data[nid].splittable()) return;
+                    if (!nodes_data[nid].splittable()) continue;
                     int fid = pid % n_column;
                     auto sum_gh_pair_data = nodes_data[nid].sum_gh_pair.device_data();
                     if (cut_row_ptr[fid + 1] != cut_row_ptr[fid]){
