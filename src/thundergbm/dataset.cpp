@@ -549,7 +549,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
 
     int buffer_size = 4 << 20; //4M
     char *buffer = (char *)malloc(buffer_size);
-    const int nthread = omp_get_max_threads();
+    const int nthread = 2;//omp_get_max_threads();
 
     auto find_last_line = [](char *ptr, const char *begin) {
         while(ptr != begin && *ptr != '\n' && *ptr != '\r' && *ptr != '\0') --ptr;

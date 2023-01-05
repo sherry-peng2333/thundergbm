@@ -73,8 +73,13 @@ void Tree::preorder_traversal(int nid, int max_depth, int depth, string &s) cons
         s = s + string(static_cast<unsigned long>(depth), '\t');
 
         if(node.is_leaf){
-            s = s + string_format("%d:leaf\n", node.final_id);
-            //s = s + string_format("%d:leaf=%.6g\n", node.final_id, node.base_weight);
+            //s = s + string_format("%d:leaf\n", node.final_id);
+            auto bw = node.base_weight.host_data();
+            s = s + string_format("%d:leaf=", node.final_id);
+            for(int i = 0; i < node.base_weight.size(); i++){
+                s = s + string_format("%.6g  ",bw[i]);
+            }
+            s = s + "\n";
         }
         else {
             int lch_final_id = node_data[node.lch_index].final_id;

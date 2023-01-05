@@ -233,7 +233,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                                             int feature_offset = cut_row_ptr_data[fid];
                                             for(int i = 0; i < d_outputs_; i++){
                                                 const GHPair src = gh_data[iid*d_outputs_+i];
-                                                GHPair &dest = hist_data[i*n_max_splits+nid0*n_bins+feature_offset + bid];
+                                                GHPair &dest = hist_data[i*n_max_splits+feature_offset + bid];
                                                 if(src.h != 0)
                                                     atomicAdd(&dest.h, src.h);
                                                 if(src.g != 0)
@@ -321,7 +321,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 inclusive_scan_by_key(cuda::par, hist_fid, hist_fid + n_max_splits*d_outputs_,
                                       hist.device_data(), hist.device_data());
                 LOG(DEBUG) << hist;
-                LOG(INFO) << hist;
+                //LOG(INFO) << hist;
 
                 auto nodes_data = tree.nodes.host_data();
                 auto missing_gh_data = missing_gh.device_data();
@@ -391,7 +391,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
 
                 } else gain_data[i] = 0;
             }
-
+            LOG(INFO) << "gain =" << gain;
             LOG(DEBUG) << "gain = " << gain;
         }
 
@@ -418,6 +418,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
             );
             LOG(DEBUG) << n_split;
             LOG(DEBUG) << "best rank & gain = " << best_idx_gain;
+            LOG(INFO) << "best rank & gain = " << best_idx_gain;
         }
 
         //get split points
