@@ -4,6 +4,7 @@
 
 #include <thundergbm/trainer.h>
 #include "thundergbm/parser.h"
+#include "thundergbm/predictor.h"
 #ifdef _WIN32
     INITIALIZE_EASYLOGGINGPP
 #endif
@@ -37,4 +38,17 @@ int main(int argc, char **argv) {
     TreeTrainer trainer;
     boosted_model = trainer.train(model_param, dataset);
     parser.save_model("tgbm.model", model_param, boosted_model, dataset);
+
+    // predict
+    DataSet dataSet;
+    model_param.path = "../../dataset/reg_valid_dataset.txt";
+    dataSet.load_from_file_mo(model_param.path, model_param);
+    Predictor pred;
+    std::chrono::high_resolution_clock timer;
+    auto start = timer.now();
+    vector<float_type> y_pred_vec = pred.predict(model_param, boosted_model, dataSet);
+    auto stop = timer.now();
+    std::chrono::duration<float> valid_time = stop - start;
+    LOG(INFO) << "valid time = " << valid_time.count();
+    LOG(INFO) << "y_pred_vec: " << y_pred_vec;
 }

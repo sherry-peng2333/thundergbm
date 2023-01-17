@@ -4,6 +4,8 @@
 #include "thundergbm/tree.h"
 #include "thundergbm/util/device_lambda.cuh"
 #include "thrust/reduce.h"
+#include "../../include/thundergbm/tree.h"
+
 
 void Tree::init2(SyncArray<GHPair> &gradients, const GBMParam &param, int d_outputs_) {
     TIMED_FUNC(timerObj);
@@ -153,5 +155,7 @@ void Tree::prune_self(float_type gamma) {
         }
     }
     LOG(DEBUG) << string_format("%d nodes are pruned", n_pruned);
+
     reorder_nid();
 }
+

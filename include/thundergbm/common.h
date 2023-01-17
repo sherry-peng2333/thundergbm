@@ -98,6 +98,7 @@ struct GBMParam {
     float learning_rate;
     std::string objective;       // "reg:linear" "reg:logistic" "binary:logistic" "multi:softprob" "multi:softmax" 
     int num_class;               // "rank:pairwise" "rank:ndcg" “mo-lab:mse” "mo-reg:mse"
+    int d_outputs;               // dimension of outputs
     int tree_per_rounds;         // #tree of each round, depends on #class
 
     //for histogram

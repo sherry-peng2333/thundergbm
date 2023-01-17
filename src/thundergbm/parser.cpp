@@ -7,23 +7,24 @@
 using namespace std;
 
 void Parser::parse_param(GBMParam &model_param, int argc, char **argv){
-    model_param.depth = 3;
-    model_param.n_trees = 1;
+    model_param.depth = 6;
+    model_param.n_trees = 10;
     model_param.n_device = 1;
     model_param.min_child_weight = 1;
     model_param.lambda = 1;
     model_param.gamma = 1e-3;
     model_param.rt_eps = 1e-6;
-    model_param.max_num_bin = 19;
+    model_param.max_num_bin = 8;
     model_param.verbose = 1;
     model_param.profiling = false;
     model_param.column_sampling_rate = 1;
     model_param.bagging = false;
     model_param.n_parallel_trees = 1;
     model_param.learning_rate = 0.5;
-    model_param.objective = "mo-reg:mse";
+    model_param.objective = "mo-reg:mse"; // "reg:linear" "reg:logistic" "binary:logistic" "multi:softprob" "multi:softmax" "rank:pairwise" "rank:ndcg" “mo-lab:mse” "mo-reg:mse"
     model_param.num_class = 1;
-    model_param.path = "../../dataset/test_train.txt";
+    model_param.d_outputs = 1;
+    model_param.path = "../../dataset/reg_train_dataset.txt";
     model_param.tree_method = "hist";
     model_param.tree_per_rounds = 1; // # tree of each round, depends on # class
 

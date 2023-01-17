@@ -46,11 +46,11 @@ void Booster::init(const DataSet &dataSet, const GBMParam &param) {
     metric.reset(Metric::create(obj->default_metric_name()));
     metric->configure(param, dataSet);
     n_devices = param.n_device;
-    int n_outputs = param.num_class * dataSet.n_instances();
+    int n_outputs = param.num_class * param.d_outputs * dataSet.n_instances();
     gradients = MSyncArray<GHPair>(n_devices, n_outputs);
-    y = MSyncArray<float_type>(n_devices, dataSet.n_instances()*dataSet.d_outputs_);
+    y = MSyncArray<float_type>(n_devices, n_outputs);
     DO_ON_MULTI_DEVICES(n_devices, [&](int device_id) {
-        y[device_id].copy_from(dataSet.y.data(), dataSet.n_instances()*dataSet.d_outputs_);
+        y[device_id].copy_from(dataSet.y.data(), n_outputs);
     });
 }
 
@@ -69,6 +69,7 @@ void Booster::boost(vector<vector<Tree>> &boosted_model) {
 
     PERFORMANCE_CHECKPOINT(timerObj);
     //show metric on training set
+//    LOG(INFO) << "final y: " << fbuilder->get_y_predict().front();
     LOG(INFO) << metric->get_name() << " = " << metric->get_score(fbuilder->get_y_predict().front());
 }
 

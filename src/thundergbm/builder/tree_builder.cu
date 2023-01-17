@@ -100,9 +100,9 @@ void TreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
     ins2node_id = MSyncArray<int>(param.n_device, n_instances);
     sp = MSyncArray<SplitPoint>(param.n_device);
     has_split = vector<bool>(param.n_device);
-    int n_outputs = param.num_class * n_instances;
+    int n_outputs = param.num_class * param.d_outputs * dataset.n_instances();
     y_predict = MSyncArray<float_type>(param.n_device, n_outputs);
-    gradients = MSyncArray<GHPair>(param.n_device, n_instances*this->d_outputs_);
+    gradients = MSyncArray<GHPair>(param.n_device, n_outputs);
 }
 
 void TreeBuilder::ins2node_id_all_reduce(int depth) {
@@ -216,8 +216,9 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
         predict_in_training(k);
         tree.nodes.resize(this->trees.front().nodes.size());
         tree.nodes.copy_from(this->trees.front().nodes);
+        tree.d_outputs_ = this->trees.front().d_outputs_;
         string s = tree.dump(param.depth);
-        LOG(INFO) << "TREE:" << s;
+        // LOG(INFO) << "TREE:" << s;
 
     }
     LOG(INFO) << "one tree............";

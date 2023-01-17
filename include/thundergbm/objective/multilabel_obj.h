@@ -33,9 +33,16 @@ public:
     virtual ~MultilabelObj() override = default;
 
     string default_metric_name() override {
-        return "mse";
+        return "rmse";
     }
-}; 
+};
+
+//template<typename T>
+//struct MSquareLoss {
+//    HOST_DEVICE static GHPair gradient(T y, T y_p) { return GHPair(y_p - y, 1); }
+//
+//    HOST_DEVICE static T predict_transform(T x) { return x; }
+//};
 
 
 #endif //THUNDERGBM_MULTILABEL_OBJ_H

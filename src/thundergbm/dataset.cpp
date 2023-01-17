@@ -549,7 +549,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
 
     int buffer_size = 4 << 20; //4M
     char *buffer = (char *)malloc(buffer_size);
-    const int nthread = 2;//omp_get_max_threads();
+    const int nthread = omp_get_max_threads();
 
     auto find_last_line = [](char *ptr, const char *begin) {
         while(ptr != begin && *ptr != '\n' && *ptr != '\r' && *ptr != '\0') --ptr;
@@ -570,7 +570,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
         vector<vector<int>> mo_row_len_(nthread);
         vector<int> max_feature(nthread, 0);
         vector<int> max_label(nthread, 0);
-        bool fis_zero_base = true;                // feature indices start from 0
+        bool fis_zero_base = false;                // feature indices start from 0
         bool lis_zero_base = true;                 // label indices start from 0
 
 #pragma omp parallel num_threads(nthread)
@@ -698,7 +698,8 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
             int row_id, column_id;
             for(row_id = 0; row_id < mo_csr_row_ptr.size()-1; row_id++){
                 for(int i = mo_csr_row_ptr[row_id]; i < mo_csr_row_ptr[row_id+1]; i++){
-                    if(!lis_zero_base) column_id = mo_csr_val[i]-1;
+                    if(lis_zero_base) column_id = mo_csr_val[i];
+                    else column_id = mo_csr_val[i] - 1;
                     y_[column_id+row_id*d_outputs_] = 1;
                 }   
             }
@@ -713,6 +714,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
     ifs.close();
     free(buffer);
     LOG(INFO) << "#instances = " << this->n_instances() << ", #features = " << this->n_features();
+//    LOG(INFO) << "#y: " << y;
     //if (ObjectiveFunction::need_load_group_file(param.objective)) load_group_file(file_name + ".group");
     //if (ObjectiveFunction::need_group_label(param.objective)) {
         //group_label();
