@@ -299,7 +299,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                             auto t_copy_end = timer.now();
                             std::chrono::duration<double> cp_used_time = t_copy_end - t_copy_start;
                             this->total_copy_time += cp_used_time.count();
-//                            PERFORMANCE_CHECKPOINT(timerObj);
+                            PERFORMANCE_CHECKPOINT(timerObj);
                         }  // end for each node
                     }//end # node > 1
                     last_hist.copy_from(hist);
@@ -325,21 +325,21 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 //LOG(INFO) << hist;
 
                 auto nodes_data = tree.nodes.host_data();
-                auto missing_gh_data = missing_gh.device_data();
+                auto missing_gh_data = missing_gh.host_data();
                 auto cut_row_ptr = cut.cut_row_ptr.host_data();
-                auto hist_data = hist.device_data();
-                auto cut_row_ptr_d = cut.cut_row_ptr.device_data();
+                auto hist_data = hist.host_data();
+                auto cut_row_ptr_d = cut.cut_row_ptr.host_data();
                 for(int pid = 0; pid < n_partition; pid++){
                     int nid0 = pid / n_column;
                     int nid = nid0 + nid_offset;
                     if (!nodes_data[nid].splittable()) continue;
                     int fid = pid % n_column;
-                    auto sum_gh_pair_data = nodes_data[nid].sum_gh_pair.device_data();
+                    auto sum_gh_pair_data = nodes_data[nid].sum_gh_pair.host_data();
                     if (cut_row_ptr[fid + 1] != cut_row_ptr[fid]){
-                        device_loop(d_outputs_, [=]__device__(int i){
+                        for(int i = 0; i < d_outputs_; i++){
                             GHPair node_gh = hist_data[i*n_max_splits+nid0 * n_bins+cut_row_ptr_d[fid + 1] - 1];
                             missing_gh_data[i*n_partition+pid] = sum_gh_pair_data[i] - node_gh;
-                        });
+                        }
                     }
                 }
                 LOG(DEBUG) << missing_gh;
@@ -428,8 +428,8 @@ void HistTreeBuilder::find_split(int level, int device_id) {
         //get split points
         {
             const int_float *best_idx_gain_data = best_idx_gain.device_data();
-            auto hist_data = hist.device_data();
-            const auto missing_gh_data = missing_gh.device_data();
+            auto hist_data = hist.host_data();
+            const auto missing_gh_data = missing_gh.host_data();
             auto cut_val_data = cut.cut_points_val.device_data();
 
             sp.resize(n_nodes_in_level);
@@ -462,13 +462,12 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                 int split_index = get<0>(bst);
                 sp_host_data[i].fea_missing_gh = SyncArray<GHPair>(d_outputs_);
                 sp_host_data[i].rch_sum_gh = SyncArray<GHPair>(d_outputs_);
-                auto spi_fea_missing_gh_data = sp_host_data[i].fea_missing_gh.device_data();
-                auto spi_rch_sum_gh_data = sp_host_data[i].rch_sum_gh.device_data();
-                device_loop(d_outputs_, [=]__device__(int j){
+                auto spi_fea_missing_gh_data = sp_host_data[i].fea_missing_gh.host_data();
+                auto spi_rch_sum_gh_data = sp_host_data[i].rch_sum_gh.host_data();
+                for(int j = 0; j < d_outputs_; j++){
                     spi_fea_missing_gh_data[j] = missing_gh_data[j * n_partition + i * n_column + hist_fid[split_index]];
                     spi_rch_sum_gh_data[j] = hist_data[j * n_max_splits + split_index];
                 }
-                );
             }
 
         }

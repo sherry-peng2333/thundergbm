@@ -37,23 +37,32 @@ void TreeBuilder::update_tree() {
                 lch.sum_gh_pair = SyncArray<GHPair>(d_outputs_);
                 rch.sum_gh_pair = SyncArray<GHPair>(d_outputs_);
                 node.split_feature_id = sp_data[i].split_fea_id;
-                auto p_missing_gh = sp_data[i].fea_missing_gh.device_data();
+                auto p_missing_gh = sp_data[i].fea_missing_gh.host_data();
                 //todo process begin
                 node.split_value = sp_data[i].fval;
                 node.split_bid = sp_data[i].split_bid;
                 rch.sum_gh_pair.copy_from(sp_data[i].rch_sum_gh);
-                auto lsum_gh_pair_data = lch.sum_gh_pair.device_data();
-                auto rsum_gh_pair_data = rch.sum_gh_pair.device_data();
-                auto nsum_gh_pair_data = node.sum_gh_pair.device_data();
-                if (sp_data[i].default_right) {
-                    device_loop(d_outputs_, [=]__device__(int j){
+                auto lsum_gh_pair_data = lch.sum_gh_pair.host_data();
+                auto rsum_gh_pair_data = rch.sum_gh_pair.host_data();
+                auto nsum_gh_pair_data = node.sum_gh_pair.host_data();
+                if (sp_data[i].default_right){
+                    for(int j = 0; j < d_outputs_; j++){
                         rsum_gh_pair_data[j] = rsum_gh_pair_data[j] + p_missing_gh[j];
-                    });  
+                    }
                     node.default_right = true;
                 }
-                device_loop(d_outputs_, [=]__device__(int j){
+                for(int j = 0; j < d_outputs_; j++){
                     lsum_gh_pair_data[j] = nsum_gh_pair_data[j] - rsum_gh_pair_data[j];
-                });
+                }
+                // if (sp_data[i].default_right) {
+                //     device_loop(d_outputs_, [=]__device__(int j){
+                //         rsum_gh_pair_data[j] = rsum_gh_pair_data[j] + p_missing_gh[j];
+                //     });  
+                //     node.default_right = true;
+                // }
+                // device_loop(d_outputs_, [=]__device__(int j){
+                //     lsum_gh_pair_data[j] = nsum_gh_pair_data[j] - rsum_gh_pair_data[j];
+                // });
                 lch.calc_weight(lambda, d_outputs_);
                 rch.calc_weight(lambda, d_outputs_);
             } else {
@@ -72,7 +81,8 @@ void TreeBuilder::update_tree() {
 
 void TreeBuilder::predict_in_training(int k) {
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
-        auto y_predict_data = y_predict[device_id].device_data() + k * n_instances * d_outputs_;
+//        auto y_predict_data = y_predict[device_id].device_data() + k * n_instances * d_outputs_;
+        auto y_predict_data = y_predict[device_id].host_data() + k * n_instances * d_outputs_;
         auto nid_data = ins2node_id[device_id].host_data();
         const Tree::TreeNode *nodes_data = trees[device_id].nodes.host_data();
         auto lr = param.learning_rate;
@@ -80,10 +90,14 @@ void TreeBuilder::predict_in_training(int k) {
         for(int i = 0; i < n_instances; i++){
             int nid = nid_data[i];
             while (nid != -1 && (nodes_data[nid].is_pruned)) nid = nodes_data[nid].parent_index;
-            auto lr_nodes_data = nodes_data[nid].base_weight.device_data();
-            device_loop(d_outputs_, [=]__device__(int j){
+//            auto lr_nodes_data = nodes_data[nid].base_weight.device_data();
+            auto lr_nodes_data = nodes_data[nid].base_weight.host_data();
+            for(int j = 0; j < d_outputs_; j++){
                 y_predict_data[i * d_outputs_ + j] += lr * lr_nodes_data[j];
-            });
+            }
+//            device_loop(d_outputs_, [=]__device__(int j){
+//                y_predict_data[i * d_outputs_ + j] += lr * lr_nodes_data[j];
+//            });
         }
     });
 }
@@ -213,12 +227,17 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
         DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
             this->trees[device_id].prune_self(param.gamma);
         });
+        std::chrono::high_resolution_clock timer;
+        auto test_start = timer.now();
         predict_in_training(k);
         tree.nodes.resize(this->trees.front().nodes.size());
         tree.nodes.copy_from(this->trees.front().nodes);
         tree.d_outputs_ = this->trees.front().d_outputs_;
         string s = tree.dump(param.depth);
-        // LOG(INFO) << "TREE:" << s;
+        auto test_end = timer.now();
+        std::chrono::duration<float> test_time = test_end - test_start;
+        LOG(INFO) << "TEST DURATION:" << test_time.count();
+        LOG(INFO) << "TREE:" << s;
 
     }
     LOG(INFO) << "one tree............";

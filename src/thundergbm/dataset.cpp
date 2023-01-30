@@ -557,11 +557,12 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
     };
 
     // read and parse data
+    bool fis_zero_base = false;                // feature indices start from 0
+    bool lis_zero_base = true;                 // label indices start from 0
     while(ifs) {
         ifs.read(buffer, buffer_size);
         char *head = buffer;
         size_t size = ifs.gcount();
-
         // create vectors for each thread
         vector<vector<float_type>> val_(nthread);
         vector<vector<int>> col_idx(nthread);
@@ -570,8 +571,6 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
         vector<vector<int>> mo_row_len_(nthread);
         vector<int> max_feature(nthread, 0);
         vector<int> max_label(nthread, 0);
-        bool fis_zero_base = false;                // feature indices start from 0
-        bool lis_zero_base = true;                 // label indices start from 0
 
 #pragma omp parallel num_threads(nthread)
         {
@@ -663,13 +662,10 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
         // get the dimension of outputs
         if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels
             for (int i = 0; i < nthread; i++) {
+                if (lis_zero_base) max_label[i] = max_label[i] + 1;
                 if (max_label[i] > d_outputs_)
-                d_outputs_ = max_label[i];
+                    d_outputs_ = max_label[i];
             }
-            if(lis_zero_base) d_outputs_=d_outputs_+1;
-        }
-        else if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
-            d_outputs_=mo_row_len_[0][0];
         }
         // get the csr of features
         for (int tid = 0; tid < nthread; tid++) {
@@ -691,28 +687,32 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
                 mo_csr_row_ptr.push_back(mo_csr_row_ptr.back() + mo_row_len);
             }
         }
-        // get y(to do: discard when csr data format is solved)
-        if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels
-            size_t n_outputs = d_outputs_* (mo_csr_row_ptr.size()-1);
-            vector<float_type> y_(n_outputs);
-            int row_id, column_id;
-            for(row_id = 0; row_id < mo_csr_row_ptr.size()-1; row_id++){
-                for(int i = mo_csr_row_ptr[row_id]; i < mo_csr_row_ptr[row_id+1]; i++){
-                    if(lis_zero_base) column_id = mo_csr_val[i];
-                    else column_id = mo_csr_val[i] - 1;
-                    y_[column_id+row_id*d_outputs_] = 1;
-                }   
-            }
-            y.insert(y.end(), y_.begin(), y_.end());
-        }
-        else if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
-            y.insert(y.end(), mo_csr_val.begin(), mo_csr_val.end());
-        }
+
 
     } // end while
 
     ifs.close();
     free(buffer);
+    if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
+        d_outputs_=mo_csr_row_ptr[1]-mo_csr_row_ptr[0];
+    }
+    // get y(to do: discard when csr data format is solved)
+    if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels
+        size_t n_outputs = d_outputs_* (mo_csr_row_ptr.size()-1);
+        vector<float_type> y_(n_outputs);
+        int row_id, column_id;
+        for(row_id = 0; row_id < mo_csr_row_ptr.size()-1; row_id++){
+            for(int i = mo_csr_row_ptr[row_id]; i < mo_csr_row_ptr[row_id+1]; i++){
+                if(lis_zero_base) column_id = mo_csr_val[i];
+                else column_id = mo_csr_val[i] - 1;
+                y_[column_id+row_id*d_outputs_] = 1;
+            }
+        }
+        y.insert(y.end(), y_.begin(), y_.end());
+    }
+    else if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
+        y.insert(y.end(), mo_csr_val.begin(), mo_csr_val.end());
+    }
     LOG(INFO) << "#instances = " << this->n_instances() << ", #features = " << this->n_features();
 //    LOG(INFO) << "#y: " << y;
     //if (ObjectiveFunction::need_load_group_file(param.objective)) load_group_file(file_name + ".group");
