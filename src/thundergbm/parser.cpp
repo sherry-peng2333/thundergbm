@@ -7,8 +7,8 @@
 using namespace std;
 
 void Parser::parse_param(GBMParam &model_param, int argc, char **argv){
-    model_param.depth = 6;
-    model_param.n_trees = 40;
+    model_param.depth = 3;
+    model_param.n_trees = 1;
     model_param.n_device = 1;
     model_param.min_child_weight = 1;
     model_param.lambda = 1;
@@ -19,11 +19,13 @@ void Parser::parse_param(GBMParam &model_param, int argc, char **argv){
     model_param.profiling = false;
     model_param.column_sampling_rate = 1;
     model_param.bagging = false;
+    model_param.multi_outputs = true;
     model_param.n_parallel_trees = 1;
     model_param.learning_rate = 1;
-    model_param.objective = "reg:linear";
+    model_param.objective = "mo-lab:mse";  // mo-cls:softmax; mo-lab:mse; mo-reg:mse
     model_param.num_class = 1;
-    model_param.path = "../dataset/test_dataset.txt";
+    model_param.d_outputs_ = 1;
+    model_param.path = "../../dataset/test1_mo_lab_dataset.txt";
     model_param.tree_method = "auto";
     model_param.tree_per_rounds = 1; // # tree of each round, depends on # class
 

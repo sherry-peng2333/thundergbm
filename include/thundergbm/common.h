@@ -94,11 +94,13 @@ struct GBMParam {
     int verbose;
     bool profiling;
     bool bagging;
+    bool multi_outputs;     // for multi-outputs
     int n_parallel_trees;
     float learning_rate;
     std::string objective;
     int num_class;
-    int tree_per_rounds; // #tree of each round, depends on #class
+    int d_outputs_;        // dimension of outputs
+    int tree_per_rounds;   // #tree of each round, depends on #class
 
     //for histogram
     int max_num_bin;

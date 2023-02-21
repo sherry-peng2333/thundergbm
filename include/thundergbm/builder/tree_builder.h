@@ -37,6 +37,8 @@ protected:
     vector<Tree> trees;
     MSyncArray<int> ins2node_id;
     MSyncArray<SplitPoint> sp;
+    MSyncArray<GHPair> sp_fea_missing_gh;   // for multi-outputs
+    MSyncArray<GHPair> sp_rch_sum_gh;       // for multi-outputs
     MSyncArray<GHPair> gradients;
     vector<bool> has_split;
 };

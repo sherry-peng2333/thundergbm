@@ -35,6 +35,19 @@ public:
 
 };
 
+class MoClassObj : public Softmax {      // multi-outputs: multi-class (by pxm)
+public:
+    void get_gradient(const SyncArray<float_type> &y, const SyncArray<float_type> &y_p,
+                      SyncArray<GHPair> &gh_pair) override;
+
+    void predict_transform(SyncArray<float_type> &y) override;
+
+    void configure(GBMParam param, const DataSet &dataset) override;
+
+protected:
+    int d_outputs_;
+};
+
 
 
 #endif //THUNDERGBM_MULTICLASS_OBJ_H

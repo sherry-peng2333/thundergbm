@@ -87,6 +87,10 @@ void TreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
     int n_outputs = param.num_class * n_instances;
     y_predict = MSyncArray<float_type>(param.n_device, n_outputs);
     gradients = MSyncArray<GHPair>(param.n_device, n_instances);
+    if(param.multi_outputs){
+        sp_fea_missing_gh = MSyncArray<GHPair>(param.n_device);
+        sp_rch_sum_gh = MSyncArray<GHPair>(param.n_device);
+    }
 }
 
 void TreeBuilder::ins2node_id_all_reduce(int depth) {

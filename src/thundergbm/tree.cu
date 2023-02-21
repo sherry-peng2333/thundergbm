@@ -28,14 +28,36 @@ void Tree::init2(const SyncArray<GHPair> &gradients, const GBMParam &param) {
     });
 
     //init root node
-    GHPair sum_gh = thrust::reduce(thrust::cuda::par, gradients.device_data(), gradients.device_end());
-    float_type lambda = param.lambda;
-    device_loop<1, 1>(1, [=]__device__(int i) {
-        Tree::TreeNode &root_node = node_data[0];
-        root_node.sum_gh_pair = sum_gh;
-        root_node.is_valid = true;
-        root_node.calc_weight(lambda);
-    });
+    if(!param.multi_outputs){
+        GHPair sum_gh = thrust::reduce(thrust::cuda::par, gradients.device_data(), gradients.device_end());
+        float_type lambda = param.lambda;
+        device_loop<1, 1>(1, [=]__device__(int i) {
+            Tree::TreeNode &root_node = node_data[0];
+            root_node.sum_gh_pair = sum_gh;
+            root_node.is_valid = true;
+            root_node.calc_weight(lambda);
+        });
+    }
+    else{
+        base_weight_mo = SyncArray<float_type>(d_outputs_*n_max_nodes);
+        sum_gh_pair_mo = SyncArray<GHPair>(d_outputs_*n_max_nodes);
+        auto base_weight_data = base_weight_mo.device_data();
+        auto sum_gh_pair_data = sum_gh_pair_mo.device_data();
+        auto gradients_data = gradients.device_data();
+        int gradients_size = gradients.size();
+        CHECK_EQ(gradients_size%d_outputs_, 0);
+        device_loop(gradients_size, [=]__device__(int i){
+            int id = i % d_outputs_;
+            sum_gh_pair_data[id] = sum_gh_pair_data[id] + gradients_data[i];
+        });
+        float_type lambda = param.lambda;
+        calc_weight_mo(lambda, 0);
+        device_loop<1, 1>(1, [=]__device__(int i) {
+            Tree::TreeNode &root_node = node_data[0];
+            root_node.is_valid = true;
+        });
+
+    }
 }
 
 string Tree::dump(int depth) const {
@@ -125,4 +147,13 @@ void Tree::prune_self(float_type gamma) {
     }
     LOG(DEBUG) << string_format("%d nodes are pruned", n_pruned);
     reorder_nid();
+}
+
+void Tree::calc_weight_mo(float_type lambda, int nid) {
+    auto sum_gh_pair_data = sum_gh_pair_mo.device_data();
+    auto base_weight_data = base_weight_mo.device_data();
+    int d_outputs_ = this->d_outputs_;
+    device_loop(d_outputs_, [=]__device__(int did){
+        base_weight_data[nid*d_outputs_+did] = -sum_gh_pair_data[nid*d_outputs_+did].g / (sum_gh_pair_data[nid*d_outputs_+did].h + lambda);
+    });
 }

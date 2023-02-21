@@ -8,7 +8,6 @@
 #include "syncarray.h"
 #include "sstream"
 
-
 class Tree {
 public:
     struct TreeNode {
@@ -54,6 +53,8 @@ public:
         return *this;
     }
 
+    void calc_weight_mo(float_type lambda, int nid);
+
     void init2(const SyncArray<GHPair> &gradients, const GBMParam &param);
 
     string dump(int depth) const;
@@ -61,6 +62,10 @@ public:
     SyncArray<Tree::TreeNode> nodes;
 
     void prune_self(float_type gamma);
+
+    int d_outputs_;
+    SyncArray<float_type> base_weight_mo;
+    SyncArray<GHPair> sum_gh_pair_mo;
 
 private:
     void preorder_traversal(int nid, int max_depth, int depth, string &s) const;

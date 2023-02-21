@@ -82,6 +82,11 @@ protected:
     SyncArray<float_type> label;
 };
 
+template<template<typename> class Loss>
+class MultiLabelObj: public RegressionObj<Loss>{
+
+};
+
 template<typename T>
 struct SquareLoss {
     HOST_DEVICE static GHPair gradient(T y, T y_p) { return GHPair(y_p - y, 1); }

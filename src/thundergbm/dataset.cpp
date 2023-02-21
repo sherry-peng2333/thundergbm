@@ -17,6 +17,10 @@ size_t DataSet::n_instances() const {
     return this->y.size();
 }
 
+size_t DataSet::n_instances_mo() const {
+    return this->mo_csr_row_ptr.size()-1;
+}
+
 void DataSet::load_from_sparse(int n_instances, float *csr_val, int *csr_row_ptr, int *csr_col_idx, float *y,
         int *group, int num_group, GBMParam &param) {
     n_features_ = 0;
@@ -517,4 +521,220 @@ void DataSet::load_csc_from_file(string file_name, GBMParam &param,const int nfe
 
     LOG(INFO) << "csc_col_ptr: " << csc_col_ptr;
     LOG(INFO) << "#features: " << n_features_;
+}
+
+
+//---------------------------------------------------------------------------------------------------------------------------
+// gbdt-mo by pxm
+void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
+    LOG(INFO) << "loading LIBSVM dataset from file(multi-outputs) ## " << file_name << " ##";
+    std::chrono::high_resolution_clock timer;
+    auto t_start = timer.now();
+
+    // initialize
+    csr_val.clear();
+    csr_col_idx.clear();
+    csr_row_ptr.resize(1, 0); // (0)
+    mo_csr_val.clear();
+    mo_csr_row_ptr.resize(1, 0); // (0)
+    n_features_ = 0;
+    d_outputs_ = 0;
+
+    // open file stream
+    std::ifstream ifs(file_name, std::ifstream::binary);
+    CHECK(ifs.is_open()) << "file ## " << file_name << " ## not found. ";
+
+    int buffer_size = 4 << 20; //4M
+    char *buffer = (char *)malloc(buffer_size);
+    const int nthread = omp_get_max_threads();
+
+    auto find_last_line = [](char *ptr, const char *begin) {
+        while(ptr != begin && *ptr != '\n' && *ptr != '\r' && *ptr != '\0') --ptr;
+        return ptr;
+    };
+
+    // read and parse data
+    bool fis_zero_base = false;                // feature indices start from 0
+    bool lis_zero_base = true;                 // label indices start from 0
+    while(ifs) {
+        ifs.read(buffer, buffer_size);
+        char *head = buffer;
+        size_t size = ifs.gcount();
+        // create vectors for each thread
+        vector<vector<float_type>> val_(nthread);
+        vector<vector<int>> col_idx(nthread);
+        vector<vector<int>> row_len_(nthread);
+        vector<vector<float_type>> mo_val_(nthread);
+        vector<vector<int>> mo_row_len_(nthread);
+        vector<int> max_feature(nthread, 0);
+        vector<int> max_label(nthread, 0);
+
+#pragma omp parallel num_threads(nthread)
+        {
+            int tid = omp_get_thread_num();                             // thread id
+            size_t nstep = (size + nthread - 1) / nthread;
+            size_t step_begin = (std::min)(tid * nstep, size - 1);
+            size_t step_end = (std::min)((tid + 1) * nstep, size - 1);
+
+            // a block is the data partition processed by a thread
+            char *block_begin = find_last_line((head + step_begin), head);
+            char *block_end = find_last_line((head + step_end), block_begin);
+
+            // move stream start position to the end of the last line after an epoch
+            if(tid == nthread - 1) {
+                if(ifs.eof()) {
+                    block_end = head + step_end;
+                } else {
+                    ifs.seekg(-(head + step_end - block_end), std::ios_base::cur);
+                }
+            }
+
+            // read instances line by line
+            char *line_begin = block_begin;
+            char *line_end = line_begin;
+            // to the end of the block
+            while(line_begin != block_end) {
+                line_end = line_begin + 1;
+                while(line_end != block_end && *line_end != '\n' && *line_end != '\r' && *line_end != '\0') ++line_end;
+                const char *p = line_begin;
+                const char *q = NULL;
+                row_len_[tid].push_back(0);
+                mo_row_len_[tid].push_back(0);
+
+                float_type label;
+                float_type temp_;
+                std::ptrdiff_t advanced = ignore_comment_and_blank(p, line_end);
+                p += advanced;
+
+                int r = parse_pair<float_type, float_type>(p, line_end, &q, label, temp_);
+                if (r < 1) {
+                    line_begin = line_end;
+                    continue;
+                }
+                // parse instance label
+                const char *label_end = p;
+                while(label_end != line_end && !isblank(*label_end)) ++label_end;
+                while(label_end != line_end &&  isblank(*label_end)) ++label_end;
+                while(p != label_end){
+                    r = parse_pair<float_type, float_type>(p, line_end, &q, label, temp_);
+                    mo_val_[tid].push_back(label);
+                    if(label>max_label[tid])
+                        max_label[tid]=label;
+                    mo_row_len_[tid].back()++;
+                    p = q;
+                }
+                
+                // parse feature id and value
+                p = q;
+                while(p != line_end) {
+                    int feature_id;
+                    float_type value;
+                    std::ptrdiff_t advanced = ignore_comment_and_blank(p, line_end);
+                    p += advanced;
+
+                    int r = parse_pair(p, line_end, &q, feature_id, value);
+                    if(r < 1) {
+                        p = q;
+                        continue;
+                    }
+                    if(r == 2) {
+                        //std::cout << "feature:value " << feature_id << ":" << value << std::endl;
+                        col_idx[tid].push_back(feature_id - 1);
+                        val_[tid].push_back(value);
+                        if(feature_id > max_feature[tid])
+                            max_feature[tid] = feature_id;
+                        row_len_[tid].back()++;
+                    }
+                    p = q;
+                } // end inner while
+                line_begin = line_end;
+            } // end outer while
+        } // end num_thread
+
+
+        // get the number of features
+        for (int i = 0; i < nthread; i++) {
+            if (max_feature[i] > n_features_)
+                n_features_ = max_feature[i]; 
+        }
+        if(fis_zero_base) n_features_ = n_features_ + 1;
+        // get the dimension of outputs
+        if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels
+            for (int i = 0; i < nthread; i++) {
+                if (lis_zero_base) max_label[i] = max_label[i] + 1;
+                if (max_label[i] > d_outputs_)
+                    d_outputs_ = max_label[i];
+            }
+        }
+        // get the csr of features
+        for (int tid = 0; tid < nthread; tid++) {
+            csr_val.insert(csr_val.end(), val_[tid].begin(), val_[tid].end());
+            if(fis_zero_base){
+                for (int i = 0; i < col_idx[tid].size(); ++i) {
+                    col_idx[tid][i]++;
+                }
+            }
+            csr_col_idx.insert(csr_col_idx.end(), col_idx[tid].begin(), col_idx[tid].end());
+            for (int row_len : row_len_[tid]) {
+                csr_row_ptr.push_back(csr_row_ptr.back() + row_len);
+            }
+        }
+        // get the csr of outputs
+        for (int tid = 0; tid < nthread; tid++) {
+            mo_csr_val.insert(mo_csr_val.end(), mo_val_[tid].begin(), mo_val_[tid].end());
+            for (int mo_row_len : mo_row_len_[tid]) {
+                mo_csr_row_ptr.push_back(mo_csr_row_ptr.back() + mo_row_len);
+            }
+        }
+
+
+    } // end while
+
+    ifs.close();
+    free(buffer);
+    if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
+        d_outputs_=mo_csr_row_ptr[1]-mo_csr_row_ptr[0];
+    }
+    // get y(to do: discard when csr data format is solved)
+    if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels  
+        size_t n_outputs = d_outputs_* (mo_csr_row_ptr.size()-1);
+        vector<float_type> y_(n_outputs);
+        int row_id, column_id;
+        for(row_id = 0; row_id < mo_csr_row_ptr.size()-1; row_id++){
+            for(int i = mo_csr_row_ptr[row_id]; i < mo_csr_row_ptr[row_id+1]; i++){
+                if(lis_zero_base) column_id = mo_csr_val[i];
+                else column_id = mo_csr_val[i] - 1;
+                y_[column_id+row_id*d_outputs_] = 1;
+            }
+        }
+        y.insert(y.end(), y_.begin(), y_.end());
+    }
+    // multi-outputs regression or multi-class
+    else if(param.objective.find("mo-reg:") != std::string::npos|| param.objective.find("mo-cls:") != std::string::npos){ 
+        this->y.insert(y.end(), mo_csr_val.begin(), mo_csr_val.end());
+        this->label.insert(label.end(), mo_csr_val.begin(), mo_csr_val.end());
+    }
+    LOG(INFO) << "#instances = " << this->n_instances_mo() << ", #features = " << this->n_features();
+    LOG(INFO) << "#y: " << y;
+    if (ObjectiveFunction::need_load_group_file(param.objective)) load_group_file(file_name + ".group");
+    if (ObjectiveFunction::need_group_label(param.objective)) {
+        group_label();
+        this->d_outputs_ = label.size();
+    }
+    LOG(INFO) << "#dimensions = " << this->d_outputs_ << ", #class =" << param.num_class;
+    LOG(INFO) << "#y: " << y;
+    LOG(INFO) << "#label:" << this->label;
+
+    auto t_end = timer.now();
+    std::chrono::duration<float> used_time = t_end - t_start;
+    LOG(INFO) << "Load dataset using time: " << used_time.count() << " s";
+
+    // TODO Estimate the required memory
+    int nnz = this->csr_val.size();
+    double mem_size = (double)nnz / 1024;
+    mem_size /= 1024;
+    mem_size /= 1024;
+    mem_size *= 12;
+    if(mem_size > (5 * param.n_device))
+        this->use_cpu = true;
 }

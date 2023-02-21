@@ -23,5 +23,5 @@ bool ObjectiveFunction::need_load_group_file(string name) {
 }
 
 bool ObjectiveFunction::need_group_label(string name) {
-    return name == "multi:softprob" || name == "multi:softmax" || name == "binary:logistic";
+    return name == "multi:softprob" || name == "multi:softmax" || name == "binary:logistic" || name == "mo-cls:softmax";
 }
