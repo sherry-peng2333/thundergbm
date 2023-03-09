@@ -36,5 +36,23 @@ public:
     string get_name() const override { return "test error";}
 };
 
+class MoMulticlassAccuracy: public Metric {
+public:
+    void configure(const GBMParam &param, const DataSet &dataset) override {
+        Metric::configure(param, dataset);
+        num_class = param.d_outputs_;
+        CHECK_EQ(num_class, dataset.label.size());
+        label.resize(num_class);
+        label.copy_from(dataset.label.data(), num_class);
+    }
+
+    float_type get_score(const SyncArray<float_type> &y_p) const override;
+
+    string get_name() const override { return "multi-outputs multi-class accuracy"; }
+
+protected:
+    int num_class;
+    SyncArray<float_type> label;
+};
 
 #endif //THUNDERGBM_MULTICLASS_METRIC_H

@@ -676,7 +676,7 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                             PERFORMANCE_CHECKPOINT(timerObj);
                         }  // end for each node
                     }//end # node > 1
-                    last_hist.copy_from(hist); //todo debug error location
+                    last_hist.copy_from(hist);
                     cudaDeviceSynchronize();
                 }
                 LOG(DEBUG) << "level: " << level;

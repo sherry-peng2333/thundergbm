@@ -97,29 +97,29 @@ void MoClassObj::get_gradient(const SyncArray<float_type> &y, const SyncArray<fl
     int d_outputs_ = this->d_outputs_;
     int n_instances = y_p.size() / d_outputs_;
     device_loop(n_instances, [=]__device__(int i) {
-        float_type max = yp_data[i];
+        float_type max = yp_data[i * d_outputs_];
         for (int k = 1; k < d_outputs_; ++k) {
-            max = fmaxf(max, yp_data[i * n_instances + k]);
+            max = fmaxf(max, yp_data[i * d_outputs_+ k]);
         }
         float_type sum = 0;
         for (int k = 0; k < d_outputs_; ++k) {
             //-max to avoid numerical issue
-            sum += expf(yp_data[i * n_instances + k] - max);
+            sum += expf(yp_data[i * d_outputs_ + k] - max);
         }
         for (int k = 0; k < d_outputs_; ++k) {
-            float_type p = expf(yp_data[i * n_instances + k] - max) / sum;
+            float_type p = expf(yp_data[i * d_outputs_ + k] - max) / sum;
             //gradient = p_i - y_i
             //approximate hessian = 2 * p_i * (1 - p_i)
             //https://github.com/dmlc/xgboost/issues/2485
             float_type g = k == y_data[i] ? (p - 1) : (p - 0);
             float_type h = fmaxf(2 * p * (1 - p), 1e-16f);
-            gh_data[i * n_instances + k] = GHPair(g, h);
+            gh_data[i * d_outputs_ + k] = GHPair(g, h);
         }
     });
 }
 
 void MoClassObj::configure(GBMParam param, const DataSet &dataset) {
-    d_outputs_ = param.d_outputs_;
+    d_outputs_ = dataset.d_outputs_;
     label.resize(d_outputs_);
     CHECK_EQ(dataset.label.size(), d_outputs_)<<dataset.label.size() << "!=" << d_outputs_;
     label.copy_from(dataset.label.data(), d_outputs_);

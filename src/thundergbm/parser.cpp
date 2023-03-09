@@ -7,8 +7,8 @@
 using namespace std;
 
 void Parser::parse_param(GBMParam &model_param, int argc, char **argv){
-    model_param.depth = 7;
-    model_param.n_trees = 100;
+    model_param.depth = 8;
+    model_param.n_trees = 10;
     model_param.n_device = 1;
     model_param.min_child_weight = 1;
     model_param.lambda = 1;
@@ -16,17 +16,17 @@ void Parser::parse_param(GBMParam &model_param, int argc, char **argv){
     model_param.rt_eps = 1e-6;
     model_param.max_num_bin = 16;
     model_param.verbose = 1;
-    model_param.profiling = false;
+    model_param.profiling = true;
     model_param.column_sampling_rate = 1;
     model_param.bagging = false;
     model_param.multi_outputs = true;
     model_param.multi_labels_full_dimension = true;
     model_param.n_parallel_trees = 1;
     model_param.learning_rate = 0.1;
-    model_param.objective = "mo-reg:mse";  // mo-cls:softmax; mo-lab:mse; mo-reg:mse
+    model_param.objective = "mo-cls:softmax";  // mo-cls:softmax; mo-lab:mse; mo-reg:mse
     model_param.num_class = 1;
     model_param.d_outputs_ = 1;
-    model_param.path = "../../dataset/mnist_reg_train_dataset.txt"; // mnist_reg_train_dataset.txt  test_reg.txt
+    model_param.path = "../../dataset/mnist_cls_train_dataset.txt"; // mnist_reg_train_dataset.txt  test_reg.txt
     model_param.tree_method = "hist";
     model_param.tree_per_rounds = 1; // # tree of each round, depends on # class
 

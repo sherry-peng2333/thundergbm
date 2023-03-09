@@ -44,6 +44,8 @@ public:
 
     void configure(GBMParam param, const DataSet &dataset) override;
 
+    string default_metric_name() override { return "momacc"; }
+
 protected:
     int d_outputs_;
 };

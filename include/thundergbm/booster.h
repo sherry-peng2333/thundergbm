@@ -49,10 +49,14 @@ void Booster::init(const DataSet &dataSet, const GBMParam &param) {
     n_devices = param.n_device;
     int n_outputs = param.num_class * dataSet.n_instances_ * param.d_outputs_;
     gradients = MSyncArray<GHPair>(n_devices, n_outputs);
-    y = MSyncArray<float_type>(n_devices, dataSet.n_instances_ * param.d_outputs_);
-
+    if(param.objective.find("mo-reg:") != std::string::npos || param.objective.find("mo-lab:") != std::string::npos){
+        y = MSyncArray<float_type>(n_devices, dataSet.n_instances_ * param.d_outputs_);
+    }
+    else{
+        y = MSyncArray<float_type>(n_devices, dataSet.n_instances_ );
+    }
     DO_ON_MULTI_DEVICES(n_devices, [&](int device_id) {
-        y[device_id].copy_from(dataSet.y.data(), dataSet.n_instances_ * param.d_outputs_);
+        y[device_id].copy_from(dataSet.y.data(), dataSet.y.size());
     });
 }
 
