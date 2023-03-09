@@ -95,6 +95,7 @@ struct GBMParam {
     bool profiling;
     bool bagging;
     bool multi_outputs;     // for multi-outputs
+    bool multi_labels_full_dimension; // two format of multi-labels, for example, the label of an instance is 2. true: 0, 0, 1  false:2
     int n_parallel_trees;
     float learning_rate;
     std::string objective;

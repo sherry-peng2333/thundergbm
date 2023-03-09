@@ -409,3 +409,7 @@ void ExactTreeBuilder::ins2node_id_all_reduce(int depth) {
         ins2node_id[device_id].copy_from(ins2node_id.front());
     });
 }
+
+void ExactTreeBuilder::find_split_mo(int level, int device_id){
+
+}

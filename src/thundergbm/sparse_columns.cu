@@ -46,7 +46,7 @@ void SparseColumns::csr2csc_gpu(
     cusparseSetMatType(descr, CUSPARSE_MATRIX_TYPE_GENERAL);
 
     n_column = dataset.n_features_;
-    n_row = dataset.n_instances();
+    n_row = dataset.n_instances_;
     nnz = dataset.csr_val.size();
     csc_val.resize(nnz);
     csc_row_idx.resize(nnz);
@@ -61,20 +61,20 @@ void SparseColumns::csr2csc_gpu(
     // TODO fix the issue of < cuda9
     size_t buffer_size = 0;
     cusparseCsr2cscEx2_bufferSize(
-        handle, dataset.n_instances(), n_column, nnz, val.device_data(),
+        handle, dataset.n_instances_, n_column, nnz, val.device_data(),
         row_ptr.device_data(), col_idx.device_data(), csc_val.device_data(),
         csc_col_ptr.device_data(), csc_row_idx.device_data(), data_type,
         CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO,
         CUSPARSE_CSR2CSC_ALG1, &buffer_size);
     SyncArray<char> tmp_buffer(buffer_size);
     cusparseCsr2cscEx2(
-        handle, dataset.n_instances(), n_column, nnz, val.device_data(),
+        handle, dataset.n_instances_, n_column, nnz, val.device_data(),
         row_ptr.device_data(), col_idx.device_data(), csc_val.device_data(),
         csc_col_ptr.device_data(), csc_row_idx.device_data(), data_type,
         CUSPARSE_ACTION_NUMERIC, CUSPARSE_INDEX_BASE_ZERO,
         CUSPARSE_CSR2CSC_ALG1, tmp_buffer.device_data());
 #else
-    cusparseScsr2csc(handle, dataset.n_instances(), n_column, nnz,
+    cusparseScsr2csc(handle, dataset.n_instances_, n_column, nnz,
                      val.device_data(), row_ptr.device_data(),
                      col_idx.device_data(), csc_val.device_data(),
                      csc_row_idx.device_data(), csc_col_ptr.device_data(),
@@ -140,7 +140,7 @@ void SparseColumns::csr2csc_cpu(
     this->column_offset = 0;
     // cpu transpose
     n_column = dataset.n_features();
-    n_row = dataset.n_instances();
+    n_row = dataset.n_instances_;
     nnz = dataset.csr_val.size();
 
     float_type *csc_val_ptr = new float_type[nnz];
@@ -148,7 +148,7 @@ void SparseColumns::csr2csc_cpu(
     int *csc_col_ptr = new int[n_column + 1];
 
     LOG(INFO) << string_format("#non-zeros = %ld, density = %.2f%%", nnz,
-                               (float)nnz / n_column / dataset.n_instances() *
+                               (float)nnz / n_column / dataset.n_instances_ *
                                    100);
     for (int i = 0; i <= n_column; ++i) {
         csc_col_ptr[i] = 0;
@@ -166,7 +166,7 @@ void SparseColumns::csr2csc_cpu(
     }
 
     // TODO to parallelize here
-    for (int row = 0; row < dataset.n_instances(); ++row) {
+    for (int row = 0; row < dataset.n_instances_; ++row) {
         for (int j = dataset.csr_row_ptr[row]; j < dataset.csr_row_ptr[row + 1];
              ++j) {
             int col = dataset.csr_col_idx[j]; // csr col
@@ -228,7 +228,7 @@ void SparseColumns::csc_by_default(
     const int *csc_row_ptr = dataset.csc_row_idx.data();
     const int *csc_col_ptr = dataset.csc_col_ptr.data();
     n_column = dataset.n_features();
-    n_row = dataset.n_instances();
+    n_row = dataset.n_instances_;
     nnz = dataset.csc_val.size();
 
     // split data to multiple device

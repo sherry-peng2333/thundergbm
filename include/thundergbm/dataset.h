@@ -29,6 +29,7 @@ public:
     vector<int> csr_col_idx;
     vector<float_type> y;
     size_t n_features_;
+    size_t n_instances_;
     vector<int> group;
     vector<float_type> label;
 

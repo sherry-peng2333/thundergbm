@@ -14,7 +14,7 @@ void LambdaRank::configure(GBMParam param, const DataSet &dataset) {
     //init gptr
     n_group = dataset.group.size();
     RankListMetric::configure_gptr(dataset.group, gptr);
-    CHECK_EQ(gptr.back(), dataset.n_instances());
+    CHECK_EQ(gptr.back(), dataset.n_instances_);
 }
 
 void

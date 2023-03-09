@@ -16,6 +16,7 @@ public:
     void init(const DataSet &dataset, const GBMParam &param) override;
 
     void find_split(int level, int device_id) override;
+    void find_split_mo(int level, int device_id) override;
 
     void ins2node_id_all_reduce(int depth) override;
 

@@ -19,6 +19,7 @@ public:
     void get_bin_ids();
 
     void find_split(int level, int device_id) override;
+    void find_split_mo(int level, int device_id) override;
 
     virtual ~HistTreeBuilder(){};
 

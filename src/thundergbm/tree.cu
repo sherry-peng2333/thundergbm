@@ -39,6 +39,7 @@ void Tree::init2(const SyncArray<GHPair> &gradients, const GBMParam &param) {
         });
     }
     else{
+        d_outputs_ = param.d_outputs_;
         base_weight_mo = SyncArray<float_type>(d_outputs_*n_max_nodes);
         sum_gh_pair_mo = SyncArray<GHPair>(d_outputs_*n_max_nodes);
         auto base_weight_data = base_weight_mo.device_data();
@@ -46,9 +47,16 @@ void Tree::init2(const SyncArray<GHPair> &gradients, const GBMParam &param) {
         auto gradients_data = gradients.device_data();
         int gradients_size = gradients.size();
         CHECK_EQ(gradients_size%d_outputs_, 0);
+        int d_outputs_ = param.d_outputs_;
         device_loop(gradients_size, [=]__device__(int i){
             int id = i % d_outputs_;
-            sum_gh_pair_data[id] = sum_gh_pair_data[id] + gradients_data[i];
+            // todo: improve atomicadd
+            const GHPair src = gradients_data[i];
+            GHPair &dest = sum_gh_pair_data[id];
+            if(src.h != 0)
+                atomicAdd(&dest.h, src.h);
+            if(src.g != 0)
+                atomicAdd(&dest.g, src.g);
         });
         float_type lambda = param.lambda;
         calc_weight_mo(lambda, 0);
@@ -71,11 +79,16 @@ void Tree::preorder_traversal(int nid, int max_depth, int depth, string &s) cons
         return;
     const TreeNode &node = nodes.host_data()[nid];
     const TreeNode *node_data = nodes.host_data();
+    const float_type *base_weight_mo_data = base_weight_mo.host_data();
     if (node.is_valid && !node.is_pruned) {
         s = s + string(static_cast<unsigned long>(depth), '\t');
 
         if(node.is_leaf){
-            s = s + string_format("%d:leaf=%.6g\n", node.final_id, node.base_weight);
+            s = s + string_format("%d:leaf=", node.final_id);
+            for(int i = 0; i < d_outputs_; i++){
+                s = s + string_format("%.6g  ", base_weight_mo_data[nid*d_outputs_+i]);
+            }
+            s = s + "\n";
         }
         else {
             int lch_final_id = node_data[node.lch_index].final_id;

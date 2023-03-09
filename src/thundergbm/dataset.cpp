@@ -696,7 +696,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
         d_outputs_=mo_csr_row_ptr[1]-mo_csr_row_ptr[0];
     }
     // get y(to do: discard when csr data format is solved)
-    if (param.objective.find("mo-lab:") != std::string::npos){ //multi-labels  
+    if (param.objective.find("mo-lab:") != std::string::npos && !param.multi_labels_full_dimension){ //multi-labels and not full dimension format
         size_t n_outputs = d_outputs_* (mo_csr_row_ptr.size()-1);
         vector<float_type> y_(n_outputs);
         int row_id, column_id;
@@ -709,11 +709,14 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
         }
         y.insert(y.end(), y_.begin(), y_.end());
     }
-    // multi-outputs regression or multi-class
-    else if(param.objective.find("mo-reg:") != std::string::npos|| param.objective.find("mo-cls:") != std::string::npos){ 
+    // multi-outputs regression or multi-class or multi-labels with full dimension format
+    else{
         this->y.insert(y.end(), mo_csr_val.begin(), mo_csr_val.end());
-        this->label.insert(label.end(), mo_csr_val.begin(), mo_csr_val.end());
+        if(param.objective.find("mo-cls:") != std::string::npos){
+            this->label.insert(label.end(), mo_csr_val.begin(), mo_csr_val.end());
+        }
     }
+    n_instances_ = this->n_instances_mo();
     LOG(INFO) << "#instances = " << this->n_instances_mo() << ", #features = " << this->n_features();
     LOG(INFO) << "#y: " << y;
     if (ObjectiveFunction::need_load_group_file(param.objective)) load_group_file(file_name + ".group");

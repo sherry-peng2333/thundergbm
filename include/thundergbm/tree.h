@@ -45,11 +45,20 @@ public:
     Tree(const Tree &tree) {
         nodes.resize(tree.nodes.size());
         nodes.copy_from(tree.nodes);
+        base_weight_mo.resize(tree.base_weight_mo.size());
+        base_weight_mo.copy_from(tree.base_weight_mo);
+        sum_gh_pair_mo.resize(tree.sum_gh_pair_mo.size());
+        sum_gh_pair_mo.copy_from(tree.sum_gh_pair_mo);
+
     }
 
     Tree &operator=(const Tree &tree) {
         nodes.resize(tree.nodes.size());
         nodes.copy_from(tree.nodes);
+        base_weight_mo.resize(tree.base_weight_mo.size());
+        base_weight_mo.copy_from(tree.base_weight_mo);
+        sum_gh_pair_mo.resize(tree.sum_gh_pair_mo.size());
+        sum_gh_pair_mo.copy_from(tree.sum_gh_pair_mo);
         return *this;
     }
 

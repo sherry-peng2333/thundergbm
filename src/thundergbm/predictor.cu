@@ -32,7 +32,7 @@ vector<float_type> Predictor::predict(const GBMParam &model_param, const vector<
 void Predictor::predict_raw(const GBMParam &model_param, const vector<vector<Tree>> &boosted_model,
                             const DataSet &dataSet, SyncArray<float_type> &y_predict) {
     TIMED_SCOPE(timerObj, "predict");
-    int n_instances = dataSet.n_instances();
+    int n_instances = dataSet.n_instances_;
     int n_features = dataSet.n_features();
 
     //the whole model to an array

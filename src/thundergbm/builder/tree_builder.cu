@@ -11,6 +11,8 @@ void TreeBuilder::update_tree() {
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
         auto& sp = this->sp[device_id];
         auto& tree = this->trees[device_id];
+        SyncArray<GHPair> &sp_fea_missing_gh = this->sp_fea_missing_gh[device_id];
+        SyncArray<GHPair> &sp_rch_sum_gh = this->sp_rch_sum_gh[device_id];
         auto sp_data = sp.device_data();
         LOG(DEBUG) << sp;
         int n_nodes_in_level = sp.size();
@@ -18,59 +20,132 @@ void TreeBuilder::update_tree() {
         Tree::TreeNode *nodes_data = tree.nodes.device_data();
         float_type rt_eps = param.rt_eps;
         float_type lambda = param.lambda;
-
-        device_loop(n_nodes_in_level, [=]__device__(int i) {
-            float_type best_split_gain = sp_data[i].gain;
-            if (best_split_gain > rt_eps) {
-                //do split
-                if (sp_data[i].nid == -1) return;
-                int nid = sp_data[i].nid;
-                Tree::TreeNode &node = nodes_data[nid];
-                node.gain = best_split_gain;
-
-                Tree::TreeNode &lch = nodes_data[node.lch_index];//left child
-                Tree::TreeNode &rch = nodes_data[node.rch_index];//right child
-                lch.is_valid = true;
-                rch.is_valid = true;
-                node.split_feature_id = sp_data[i].split_fea_id;
-                GHPair p_missing_gh = sp_data[i].fea_missing_gh;
-                //todo process begin
-                node.split_value = sp_data[i].fval;
-                node.split_bid = sp_data[i].split_bid;
-                rch.sum_gh_pair = sp_data[i].rch_sum_gh;
-                if (sp_data[i].default_right) {
-                    rch.sum_gh_pair = rch.sum_gh_pair + p_missing_gh;
-                    node.default_right = true;
+        if(multi_outputs){
+            int d_outputs = this->d_outputs_;
+            GHPair *sum_gh_pair_mo_data = tree.sum_gh_pair_mo.device_data();
+            float_type *base_weight_mo_data = tree.base_weight_mo.device_data();
+            auto sp_fea_missing_gh_data = sp_fea_missing_gh.device_data();
+            auto sp_rch_sum_gh_data = sp_rch_sum_gh.device_data();
+            // when it is multi_outputs
+            device_loop(n_nodes_in_level, [=]__device__(int i) {
+                float_type best_split_gain = sp_data[i].gain;
+                if (best_split_gain > rt_eps) {
+                    //do split
+                    if (sp_data[i].nid == -1) return;
+                    int nid = sp_data[i].nid;
+                    Tree::TreeNode &node = nodes_data[nid];
+                    node.gain = best_split_gain;
+                    int lid = node.lch_index;
+                    int rid = node.rch_index;
+                    Tree::TreeNode &lch = nodes_data[lid];//left child
+                    Tree::TreeNode &rch = nodes_data[rid];//right child
+                    lch.is_valid = true;
+                    rch.is_valid = true;
+                    node.split_feature_id = sp_data[i].split_fea_id;
+                    //todo process begin
+                    node.split_value = sp_data[i].fval;
+                    node.split_bid = sp_data[i].split_bid;
+                    for(int j = 0; j < d_outputs; j++){
+                        sum_gh_pair_mo_data[rid*d_outputs+j] = sp_rch_sum_gh_data[i*d_outputs+j];
+                    }
+                    if (sp_data[i].default_right) {
+                        for(int j = 0; j < d_outputs; j++){
+                            sum_gh_pair_mo_data[rid*d_outputs+j] = sum_gh_pair_mo_data[rid*d_outputs+j] + sp_fea_missing_gh_data[i*d_outputs+j];
+                        }
+                        node.default_right = true;
+                    }
+                    for(int j = 0; j < d_outputs; j++){
+                        sum_gh_pair_mo_data[lid*d_outputs+j] = sum_gh_pair_mo_data[nid*d_outputs+j] - sum_gh_pair_mo_data[rid*d_outputs+j];
+                    }
+                    for(int j = 0; j < d_outputs; j++){
+                        base_weight_mo_data[lid*d_outputs+j] = -sum_gh_pair_mo_data[lid*d_outputs+j].g / (sum_gh_pair_mo_data[lid*d_outputs+j].h + lambda);
+                        base_weight_mo_data[rid*d_outputs+j] = -sum_gh_pair_mo_data[rid*d_outputs+j].g / (sum_gh_pair_mo_data[rid*d_outputs+j].h + lambda);
+                    }
+                } else {
+                    //set leaf
+                    if (sp_data[i].nid == -1) return;
+                    int nid = sp_data[i].nid;
+                    Tree::TreeNode &node = nodes_data[nid];
+                    node.is_leaf = true;
+                    nodes_data[node.lch_index].is_valid = false;
+                    nodes_data[node.rch_index].is_valid = false;
                 }
-                lch.sum_gh_pair = node.sum_gh_pair - rch.sum_gh_pair;
-                lch.calc_weight(lambda);
-                rch.calc_weight(lambda);
-            } else {
-                //set leaf
-                if (sp_data[i].nid == -1) return;
-                int nid = sp_data[i].nid;
-                Tree::TreeNode &node = nodes_data[nid];
-                node.is_leaf = true;
-                nodes_data[node.lch_index].is_valid = false;
-                nodes_data[node.rch_index].is_valid = false;
-            }
-        });
+            });
+        }
+        else{
+            device_loop(n_nodes_in_level, [=]__device__(int i) {
+                float_type best_split_gain = sp_data[i].gain;
+                if (best_split_gain > rt_eps) {
+                    //do split
+                    if (sp_data[i].nid == -1) return;
+                    int nid = sp_data[i].nid;
+                    Tree::TreeNode &node = nodes_data[nid];
+                    node.gain = best_split_gain;
+
+                    Tree::TreeNode &lch = nodes_data[node.lch_index];//left child
+                    Tree::TreeNode &rch = nodes_data[node.rch_index];//right child
+                    lch.is_valid = true;
+                    rch.is_valid = true;
+                    node.split_feature_id = sp_data[i].split_fea_id;
+                    GHPair p_missing_gh = sp_data[i].fea_missing_gh;
+                    //todo process begin
+                    node.split_value = sp_data[i].fval;
+                    node.split_bid = sp_data[i].split_bid;
+                    rch.sum_gh_pair = sp_data[i].rch_sum_gh;
+                    if (sp_data[i].default_right) {
+                        rch.sum_gh_pair = rch.sum_gh_pair + p_missing_gh;
+                        node.default_right = true;
+                    }
+                    lch.sum_gh_pair = node.sum_gh_pair - rch.sum_gh_pair;
+                    lch.calc_weight(lambda);
+                    rch.calc_weight(lambda);
+                } else {
+                    //set leaf
+                    if (sp_data[i].nid == -1) return;
+                    int nid = sp_data[i].nid;
+                    Tree::TreeNode &node = nodes_data[nid];
+                    node.is_leaf = true;
+                    nodes_data[node.lch_index].is_valid = false;
+                    nodes_data[node.rch_index].is_valid = false;
+                }
+            });
+        }
         LOG(DEBUG) << tree.nodes;
     });
 }
 
 void TreeBuilder::predict_in_training(int k) {
-    DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
-        auto y_predict_data = y_predict[device_id].device_data() + k * n_instances;
-        auto nid_data = ins2node_id[device_id].device_data();
-        const Tree::TreeNode *nodes_data = trees[device_id].nodes.device_data();
-        auto lr = param.learning_rate;
-        device_loop(n_instances, [=]__device__(int i) {
-            int nid = nid_data[i];
-            while (nid != -1 && (nodes_data[nid].is_pruned)) nid = nodes_data[nid].parent_index;
-            y_predict_data[i] += lr * nodes_data[nid].base_weight;
+    if(multi_outputs){
+        DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
+            auto y_predict_data = y_predict[device_id].device_data() + k * n_instances;
+            auto nid_data = ins2node_id[device_id].device_data();
+            const Tree::TreeNode *nodes_data = trees[device_id].nodes.device_data();
+            auto base_weight_data = trees[device_id].base_weight_mo.device_data();
+            int d_outputs_ = this->d_outputs_;
+            auto lr = param.learning_rate;
+            device_loop(n_instances, [=]__device__(int i) {
+                int nid = nid_data[i];
+                while (nid != -1 && (nodes_data[nid].is_pruned)) nid = nodes_data[nid].parent_index;
+                for(int j = 0; j < d_outputs_; j++){
+                    y_predict_data[i*d_outputs_+j] += lr * base_weight_data[nid*d_outputs_+j];
+                }
+            });
         });
-    });
+    }
+    else{
+        DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
+            auto y_predict_data = y_predict[device_id].device_data() + k * n_instances;
+            auto nid_data = ins2node_id[device_id].device_data();
+            const Tree::TreeNode *nodes_data = trees[device_id].nodes.device_data();
+            auto lr = param.learning_rate;
+            device_loop(n_instances, [=]__device__(int i) {
+                int nid = nid_data[i];
+                while (nid != -1 && (nodes_data[nid].is_pruned)) nid = nodes_data[nid].parent_index;
+                y_predict_data[i] += lr * nodes_data[nid].base_weight;
+            });
+        });
+    }
+
 }
 
 void TreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
@@ -79,14 +154,16 @@ void TreeBuilder::init(const DataSet &dataset, const GBMParam &param) {
     CHECK_GE(n_available_device, param.n_device) << "only " << n_available_device
                                                  << " GPUs available; please set correct number of GPUs to use";
     FunctionBuilder::init(dataset, param);
-    this->n_instances = dataset.n_instances();
+    this->n_instances = dataset.n_instances_;
+    this->d_outputs_ = dataset.d_outputs_;
+    this->multi_outputs = param.multi_outputs;
     trees = vector<Tree>(param.n_device);
     ins2node_id = MSyncArray<int>(param.n_device, n_instances);
     sp = MSyncArray<SplitPoint>(param.n_device);
     has_split = vector<bool>(param.n_device);
-    int n_outputs = param.num_class * n_instances;
+    int n_outputs = param.num_class * n_instances * param.d_outputs_;
     y_predict = MSyncArray<float_type>(param.n_device, n_outputs);
-    gradients = MSyncArray<GHPair>(param.n_device, n_instances);
+    gradients = MSyncArray<GHPair>(param.n_device, n_instances * param.d_outputs_);
     if(param.multi_outputs){
         sp_fea_missing_gh = MSyncArray<GHPair>(param.n_device);
         sp_rch_sum_gh = MSyncArray<GHPair>(param.n_device);
@@ -163,7 +240,7 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
 
         for (int level = 0; level < param.depth; ++level) {
             DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
-                find_split(level, device_id);
+                find_split_mo(level, device_id);
             });
             split_point_all_reduce(level);
             {
@@ -185,12 +262,19 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
                 ins2node_id_all_reduce(level);
             }
         }
-        DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
-            this->trees[device_id].prune_self(param.gamma);
-        });
+//        DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
+//            this->trees[device_id].prune_self(param.gamma);
+//        });
         predict_in_training(k);
         tree.nodes.resize(this->trees.front().nodes.size());
         tree.nodes.copy_from(this->trees.front().nodes);
+        tree.sum_gh_pair_mo.resize(this->trees.front().sum_gh_pair_mo.size());
+        tree.sum_gh_pair_mo.copy_from(this->trees.front().sum_gh_pair_mo);
+        tree.base_weight_mo.resize(this->trees.front().base_weight_mo.size());
+        tree.base_weight_mo.copy_from(this->trees.front().base_weight_mo);
+        tree.d_outputs_ = this->trees.front().d_outputs_;
+//        string s = tree.dump(param.depth);
+//        LOG(INFO) << "TREE:" << s;
     }
     return trees;
 }

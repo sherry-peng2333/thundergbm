@@ -18,5 +18,5 @@ Metric *Metric::create(string name) {
 
 void Metric::configure(const GBMParam &param, const DataSet &dataset) {
     y.resize(dataset.y.size());
-    y.copy_from(dataset.y.data(), dataset.n_instances());
+    y.copy_from(dataset.y.data(), dataset.y.size());
 }

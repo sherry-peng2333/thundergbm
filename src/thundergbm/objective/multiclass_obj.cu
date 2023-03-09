@@ -99,15 +99,15 @@ void MoClassObj::get_gradient(const SyncArray<float_type> &y, const SyncArray<fl
     device_loop(n_instances, [=]__device__(int i) {
         float_type max = yp_data[i];
         for (int k = 1; k < d_outputs_; ++k) {
-            max = fmaxf(max, yp_data[k * n_instances + i]);
+            max = fmaxf(max, yp_data[i * n_instances + k]);
         }
         float_type sum = 0;
         for (int k = 0; k < d_outputs_; ++k) {
             //-max to avoid numerical issue
-            sum += expf(yp_data[k * n_instances + i] - max);
+            sum += expf(yp_data[i * n_instances + k] - max);
         }
         for (int k = 0; k < d_outputs_; ++k) {
-            float_type p = expf(yp_data[k * n_instances + i] - max) / sum;
+            float_type p = expf(yp_data[i * n_instances + k] - max) / sum;
             //gradient = p_i - y_i
             //approximate hessian = 2 * p_i * (1 - p_i)
             //https://github.com/dmlc/xgboost/issues/2485

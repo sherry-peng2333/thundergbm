@@ -14,6 +14,7 @@
 class TreeBuilder : public FunctionBuilder {
 public:
     virtual void find_split(int level, int device_id) = 0;
+    virtual void find_split_mo(int level, int device_id) = 0;
 
     virtual void update_ins2node_id() = 0;
 
@@ -34,6 +35,8 @@ public:
 protected:
     vector<Shard> shards;
     int n_instances;
+    int d_outputs_;                         // for multi-outputs
+    bool multi_outputs;                     // for multi-outputs
     vector<Tree> trees;
     MSyncArray<int> ins2node_id;
     MSyncArray<SplitPoint> sp;
