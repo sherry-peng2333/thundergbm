@@ -1,0 +1,8 @@
+//
+// Created by xuemei on 23-3-10.
+//
+
+#ifndef THUNDERGBM_TIME_PROFILER_H
+#define THUNDERGBM_TIME_PROFILER_H
+
+#endif //THUNDERGBM_TIME_PROFILER_H
