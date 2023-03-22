@@ -692,9 +692,9 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
 
     ifs.close();
     free(buffer);
-    if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
-        d_outputs_=mo_csr_row_ptr[1]-mo_csr_row_ptr[0];
-    }
+//    if(param.objective.find("mo-reg:") != std::string::npos){ // multi-outputs regression
+//        d_outputs_=mo_csr_row_ptr[1]-mo_csr_row_ptr[0];
+//    }
     // get y(to do: discard when csr data format is solved)
     if (param.objective.find("mo-lab:") != std::string::npos && !param.multi_labels_full_dimension){ //multi-labels and not full dimension format
         size_t n_outputs = d_outputs_* (mo_csr_row_ptr.size()-1);
@@ -711,6 +711,7 @@ void DataSet::load_from_file_mo(string file_name, GBMParam &param) {
     }
     // multi-outputs regression or multi-class or multi-labels with full dimension format
     else{
+        d_outputs_=mo_csr_row_ptr[1]-mo_csr_row_ptr[0];
         this->y.insert(y.end(), mo_csr_val.begin(), mo_csr_val.end());
         if(param.objective.find("mo-cls:") != std::string::npos){
             this->label.insert(label.end(), mo_csr_val.begin(), mo_csr_val.end());

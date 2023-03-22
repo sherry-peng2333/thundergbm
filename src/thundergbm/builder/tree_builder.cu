@@ -229,7 +229,8 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
     DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
         this->shards[device_id].column_sampling(param.column_sampling_rate);
     });
-
+    float_type build_hist_total_time = 0;
+    float_type subtract_time = 0;
     for (int k = 0; k < param.tree_per_rounds; ++k) {
         Tree &tree = trees[k];
         DO_ON_MULTI_DEVICES(param.n_device, [&](int device_id){
@@ -273,8 +274,12 @@ vector<Tree> TreeBuilder::build_approximate(const MSyncArray<GHPair> &gradients)
         tree.base_weight_mo.resize(this->trees.front().base_weight_mo.size());
         tree.base_weight_mo.copy_from(this->trees.front().base_weight_mo);
         tree.d_outputs_ = this->trees.front().d_outputs_;
+        build_hist_total_time += this->build_hist_time;
+        subtract_time += this->subtract_time;
 //        string s = tree.dump(param.depth);
 //        LOG(INFO) << "TREE:" << s;
     }
+    LOG(INFO) << "time for atom operation of building hist: " << build_hist_total_time;
+    LOG(INFO) << "time for subtract operation: " << subtract_time;
     return trees;
 }

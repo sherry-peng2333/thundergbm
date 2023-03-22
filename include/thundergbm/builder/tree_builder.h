@@ -44,6 +44,8 @@ protected:
     MSyncArray<GHPair> sp_rch_sum_gh;       // for multi-outputs
     MSyncArray<GHPair> gradients;
     vector<bool> has_split;
+    float_type build_hist_time;
+    float_type subtract_time;
 };
 
 

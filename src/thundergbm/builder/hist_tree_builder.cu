@@ -285,6 +285,7 @@ void HistTreeBuilder::find_split(int level, int device_id) {
                             auto t_copy_end = timer.now();
                             std::chrono::duration<double> cp_used_time = t_copy_end - t_copy_start;
                             this->total_copy_time += cp_used_time.count();
+
 //                            PERFORMANCE_CHECKPOINT(timerObj);
                         }  // end for each node
                     }//end # node > 1
@@ -461,11 +462,10 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
     int n_split = n_nodes_in_level * n_bins;
     int d_outputs_ = this->d_outputs_;
     LOG(TRACE) << "start finding split";
-
+    auto t_build_start = timer.now();
     //find the best split locally
     {
         using namespace thrust;
-        auto t_build_start = timer.now();
 
         //calculate split information for each split
         SyncArray<GHPair> hist(n_max_splits*d_outputs_);
@@ -477,8 +477,7 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
             {
                 TIMED_SCOPE(timerObj, "build hist");
                 {
-                    size_t
-                            smem_size = n_bins * sizeof(GHPair)*d_outputs_;
+                    size_t smem_size = n_bins * sizeof(GHPair)*d_outputs_;
                     LOG(DEBUG) << "shared memory size = " << smem_size / 1024.0 << " KB";
                     if (n_nodes_in_level == 1) {
                         //root
@@ -490,6 +489,7 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                         auto n_instances = this->n_instances;
                         if (smem_size > 1) {
                             //48 * 1024
+                            auto b_start1 = timer.now();
                             device_loop(n_instances * n_column, [=]__device__(int i) {
                                 int iid = i / n_column;
                                 int fid = i % n_column;
@@ -508,6 +508,9 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                                 }
 
                             });
+                            auto b_end1 = timer.now();
+                            std::chrono::duration<double> b_used_time1 = b_end1 - b_start1;
+                            this->build_hist_time += b_used_time1.count();
                         }
                         else {
                             // Todo: add multi-outputs feature
@@ -598,10 +601,10 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
 
                                 if (smem_size > 1) {
                                     //48 * 1024
+                                    auto b_start2 = timer.now();
                                     device_loop((idx_end - idx_begin) * n_column, [=]__device__(int i) {
                                         int iid = node_idx_data[i / n_column + idx_begin];
                                         int fid = i % n_column;
-//                                        printf("i: %d  iid: %d fid: %d", i, iid, fid);
                                         unsigned char bid = dense_bin_id_data[iid * n_column + fid];
                                         if (bid != max_num_bin) {
                                             int feature_offset = cut_row_ptr_data[fid];
@@ -615,6 +618,9 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                                             }
                                         }
                                     });
+                                    auto b_end2 = timer.now();
+                                    std::chrono::duration<double> b_used_time2 = b_end2 - b_start2;
+                                    this->build_hist_time += b_used_time2.count();
                                 }
                                 else {
                                     // Todo: add multi-outputs feature
@@ -673,7 +679,8 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                             auto t_copy_end = timer.now();
                             std::chrono::duration<double> cp_used_time = t_copy_end - t_copy_start;
                             this->total_copy_time += cp_used_time.count();
-                            PERFORMANCE_CHECKPOINT(timerObj);
+                            this->subtract_time += cp_used_time.count();
+                             PERFORMANCE_CHECKPOINT(timerObj);
                         }  // end for each node
                     }//end # node > 1
                     last_hist.copy_from(hist);
