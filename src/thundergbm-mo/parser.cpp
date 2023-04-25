@@ -7,7 +7,7 @@
 using namespace std;
 
 void Parser::parse_param(GBMParam &model_param, int argc, char **argv){
-    model_param.depth = 7;
+    model_param.depth = 8;
     model_param.n_trees = 10;
     model_param.n_device = 1;
     model_param.min_child_weight = 4;
@@ -23,10 +23,10 @@ void Parser::parse_param(GBMParam &model_param, int argc, char **argv){
     model_param.multi_labels_full_dimension = true;
     model_param.n_parallel_trees = 1;
     model_param.learning_rate = 0.1;
-    model_param.objective = "mo-cls:softmax";  // mo-cls:softmax; mo-lab:mse; mo-reg:mse
+    model_param.objective = "mo-lab:mse";  // mo-cls:softmax; mo-lab:mse; mo-reg:mse
     model_param.num_class = 1;
     model_param.d_outputs_ = 1;
-    model_param.path = "../../../dataset/caltech101_train_dataset.txt"; // mnist_reg_train_dataset.txt  test_reg.txt
+    model_param.path = "../../../dataset/nus_train_dataset.txt"; // mnist_reg_train_dataset.txt  test_reg.txt
     model_param.tree_method = "hist";
     model_param.tree_per_rounds = 1; // # tree of each round, depends on # class
 
