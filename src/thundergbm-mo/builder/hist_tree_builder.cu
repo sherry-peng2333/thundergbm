@@ -513,16 +513,14 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                     if (n_nodes_in_level == 1) {
                         //root
                         auto hist_data = hist.device_data();
-                        auto hist_host_data = hist.host_data();
                         auto hist_per_split_gdata = hist_per_split_g.device_data();
                         auto hist_per_split_hdata = hist_per_split_h.device_data();
                         auto cut_row_ptr_data = cut.cut_row_ptr.device_data();
-                        auto cut_row_ptr_host_data = cut.cut_row_ptr.host_data();
                         auto gh_data = gh_pair.device_data();
                         auto dense_bin_id_data = dense_bin_id.device_data();
                         auto max_num_bin = param.max_num_bin;
                         auto n_instances = this->n_instances;
-                        if (smem_size > 48 * 1024) {
+                        if (smem_size > 1) {
                             //48 * 1024
                             auto b_start1 = timer.now();
                             device_loop(n_instances * n_column, [=]__device__(int i) {
@@ -544,6 +542,7 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                                 }
 
                             });
+
                             auto b_end1 = timer.now();
                             std::chrono::duration<double> b_used_time1 = b_end1 - b_start1;
                             this->build_hist_time += b_used_time1.count();
@@ -641,7 +640,7 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                                 //auto hist_data = hist.device_data() + nid0 * n_bins * d_outputs_;
                                 this->total_hist_num++;
 
-                                if (smem_size > 48 * 1024) {
+                                if (smem_size > 1) {
                                     //48 * 1024
                                     auto b_start2 = timer.now();
                                     device_loop((idx_end - idx_begin) * n_column, [=]__device__(int i) {
@@ -750,7 +749,7 @@ void HistTreeBuilder::find_split_mo(int level, int device_id) {
                 inclusive_scan_by_key(cuda::par, hist_fid, hist_fid + n_split*d_outputs_,
                                       hist.device_data(), hist.device_data());
                 LOG(DEBUG) << hist;
-                //LOG(INFO) << hist;
+//                LOG(INFO) << hist;
                 auto nodes_data = tree.nodes.device_data();
                 auto sum_gh_pair_mo_data = tree.sum_gh_pair_mo.device_data();
                 auto missing_gh_data = missing_gh.device_data();
